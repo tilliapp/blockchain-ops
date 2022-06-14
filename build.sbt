@@ -3,8 +3,8 @@ import sbt.Keys._
 val sharedSettings: Seq[Def.Setting[_]] = Seq(
   organization := "app.tilli",
   version := "0.1.0-SNAPSHOT",
-//  scalaVersion := "2.13.8",
-  scalaVersion := "2.12.15",
+  scalaVersion := "2.13.8",
+//  scalaVersion := "2.12.15",
 //  scalaVersion := "2.12.7",
   scalacOptions ++= Seq(
 //    "-Ypartial-unification",
