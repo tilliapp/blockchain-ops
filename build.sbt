@@ -22,7 +22,6 @@ val sharedSettings: Seq[Def.Setting[_]] = Seq(
   publishArtifact in Test := true,
   test in assembly := {},
   assemblyMergeStrategy in assembly := {
-//    case PathList("META-INF", "maven", "org.webjars", "swagger-ui", "pom.properties") => MergeStrategy.singleOrError
     case PathList("META-INF", xs @ _*) => MergeStrategy.discard
     case x => MergeStrategy.first
   },
