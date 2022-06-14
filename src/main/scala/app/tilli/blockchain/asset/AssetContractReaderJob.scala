@@ -1,12 +1,12 @@
 package app.tilli.blockchain.asset
 
 // original api import
-//import org.apache.flink.streaming.api.scala._
+import org.apache.flink.streaming.api.scala._
 
 // flink-scala-api imports
 
-import io.findify.flink.api._
-import io.findify.flinkadt.api._
+//import io.findify.flink.api._
+//import io.findify.flinkadt.api._
 import org.apache.flink.api.java.functions.KeySelector
 
 class AssetContractReaderJob {
