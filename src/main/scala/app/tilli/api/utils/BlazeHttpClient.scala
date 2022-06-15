@@ -7,7 +7,6 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
 
 import scala.concurrent.duration.{Duration, _}
-import scala.language.higherKinds
 
 /**
  * Http Client resource based on Blaze.

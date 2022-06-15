@@ -3,15 +3,17 @@ import sbt._
 object Dependencies {
 
   val catsVersion = "2.7.0"
-  val catsEffectVersion= "3.3.5"
-  val http4sVersion = "0.23.10"
+  val catsEffectVersion= "3.3.12"
+  val http4sVersion = "0.23.12"
+  val fs2CoreVersion = "3.2.8"
+  val fs2Version = "2.5.0-M3"
   val circeVersion = "0.14.1"
 
   val core = Seq(
     "org.typelevel" %% "cats-core" % catsVersion,
     "org.typelevel" %% "cats-free" % catsVersion,
     "org.typelevel" %% "cats-effect" % catsEffectVersion,
-    "co.fs2" %% "fs2-core" % "3.2.8",
+    "co.fs2" %% "fs2-core" % fs2CoreVersion,
 
     "ch.qos.logback" % "logback-classic" % "1.2.11",
   )
@@ -24,6 +26,10 @@ object Dependencies {
     "org.http4s" %% "http4s-blaze-client" % http4sVersion,
 //    "org.http4s" %% "http4s-blaze-server" % http4sVersion,
     "org.http4s" %% "http4s-circe" % http4sVersion,
+  )
+
+  val streamingDependencies = Seq(
+    "com.github.fd4s" %% "fs2-kafka" % fs2Version,
   )
 
   val serdesDependencies = Seq(
