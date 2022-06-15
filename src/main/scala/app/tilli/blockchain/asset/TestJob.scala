@@ -7,9 +7,9 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 case class ThreeInts(a: Int, b: Int, c: Int)
 
 object TestJob {
-  implicit val typeInfoInt = TypeInformation.of(classOf[Int])
-  implicit val typeInfoThreeInts = TypeInformation.of(classOf[ThreeInts])
-  implicit val threeIntsSemiGroup: Semigroup[ThreeInts] = (x: ThreeInts, y: ThreeInts) => ThreeInts(x.a, y.b, y.c)
+  private[asset] implicit val typeInfoInt: TypeInformation[Int] = TypeInformation.of(classOf[Int])
+  private[asset] implicit val typeInfoThreeInts: TypeInformation[ThreeInts] = TypeInformation.of(classOf[ThreeInts])
+  private[asset] implicit val threeIntsSemiGroup: Semigroup[ThreeInts] = (x: ThreeInts, y: ThreeInts) => ThreeInts(x.a, y.b, y.c)
 }
 
 class TestJob {

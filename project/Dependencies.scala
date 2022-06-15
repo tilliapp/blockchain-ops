@@ -17,6 +17,8 @@ object Dependencies {
     //// Scala 2.13 Arrisk support:
     "com.ariskk" % "flink4s_2.13" % flinkScalaBindingsVersion % "provided",
     "org.apache.flink" % "flink-clients" % flinkVersion,
+    "org.apache.flink" % "flink-core" % flinkVersion,
+    "org.apache.flink" % "flink-connector-kafka" % flinkVersion,
   )
 
   val testDependencies = Seq(

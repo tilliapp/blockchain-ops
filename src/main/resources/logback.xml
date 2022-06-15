@@ -5,6 +5,8 @@
         </encoder>
     </appender>
 
+    <logger name="org.apache.kafka.clients" level="INFO"/>
+
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
