@@ -1,2 +1,14 @@
+.idea
+*.iml
+*.ipr
+*.iws
+
 *.class
 *.log
+
+target
+build.sbtout
+.bsp
+
+.secrets
+.DS_Store
