@@ -10,6 +10,7 @@ import app.tilli.utils.{ApplicationConfig, InputTopic}
 import cats.effect.{Async, ExitCode, IO, IOApp}
 import io.circe.Json
 import org.http4s.client.Client
+import upperbound.Limiter
 
 import java.util.UUID
 import scala.concurrent.duration.DurationLong
@@ -17,6 +18,7 @@ import scala.concurrent.duration.DurationLong
 case class Resources(
   appConfig: AppConfig,
   httpClient: Client[IO],
+  openSeaRateLimiter: Limiter[IO],
 )
 
 object AssetContractReader extends IOApp {
@@ -27,7 +29,12 @@ object AssetContractReader extends IOApp {
     val resources = for {
       appConfig <- ApplicationConfig()
       httpClient <- BlazeHttpClient.clientWithRetry(appConfig.httpClientConfig)
-    } yield Resources(appConfig, httpClient)
+      openSeaRateLimiter <- Limiter.start[IO](
+        minInterval = appConfig.rateLimitOpenSea.minIntervalMs.milliseconds,
+        maxConcurrent = appConfig.rateLimitOpenSea.maxConcurrent,
+        maxQueued = appConfig.rateLimitOpenSea.maxQueued,
+      )
+    } yield Resources(appConfig, httpClient, openSeaRateLimiter)
 
     def httpServer(implicit r: Resources): IO[ExitCode] =
       BlazeServer
@@ -42,13 +49,15 @@ object AssetContractReader extends IOApp {
       val kafkaConsumer = new KafkaConsumer[Option[UUID], Json](kafkaConfig)
 
       import fs2.kafka._
-      def processRecord(record: ConsumerRecord[Option[UUID], Json]): IO[Unit] = IO(println(s"Processing record: $record"))
+      def processRecord(record: ConsumerRecord[Option[UUID], Json]): IO[Unit] =
+        IO(println(s"Processing record: $record"))
+
       val stream = kafkaConsumer
         .consumerStream
         .subscribeTo(r.appConfig.inputTopic.name)
         .records
-//        .evalTap(r => IO(println(r.record.value)))
-        .mapAsync(1) {committable =>
+        //        .evalTap(r => IO(println(r.record.value)))
+        .mapAsync(1) { committable =>
           processRecord(committable.record).as(committable.offset)
         }
         .through(commitBatchWithin(kafkaConfig.batchSize, kafkaConfig.batchDurationMs.milliseconds))

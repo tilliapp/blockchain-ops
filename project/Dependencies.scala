@@ -16,7 +16,6 @@ object Dependencies {
     "org.typelevel" %% "cats-free" % catsVersion,
     "org.typelevel" %% "cats-effect" % catsEffectVersion,
     "co.fs2" %% "fs2-core" % fs2CoreVersion,
-
   )
 
   val utils = Seq(
@@ -36,6 +35,8 @@ object Dependencies {
     "org.http4s" %% "http4s-blaze-client" % http4sVersion,
     "org.http4s" %% "http4s-blaze-server" % http4sVersion,
     "org.http4s" %% "http4s-circe" % http4sVersion,
+
+    "org.systemfw" %% "upperbound" % "0.4.0",
 
     "com.softwaremill.sttp.tapir" %% "tapir-core" % tapirVersion,
     "com.softwaremill.sttp.tapir" %% "tapir-json-circe" % tapirVersion,
