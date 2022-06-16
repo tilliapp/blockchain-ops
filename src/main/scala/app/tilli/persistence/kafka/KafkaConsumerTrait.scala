@@ -3,12 +3,15 @@ package app.tilli.persistence.kafka
 import cats.effect.Async
 import cats.effect.kernel.Resource
 import fs2.kafka.{ConsumerSettings, IsolationLevel, RecordDeserializer}
+import org.apache.kafka.clients.consumer.ConsumerConfig
 
 trait KafkaConsumerTrait[KEY, VALUE] {
 
   def kafkaConsumerConfiguration: KafkaConsumerConfiguration
 
-  def withConsumerProperties: Map[String, String] = Map.empty
+  def withConsumerProperties: Map[String, String] = Map(
+    ConsumerConfig.AUTO_OFFSET_RESET_CONFIG -> kafkaConsumerConfiguration.autoOffsetResetConfig,
+  )
 
   def consumerSettings[F[_]](implicit
     keyDeserializer: RecordDeserializer[F, KEY],

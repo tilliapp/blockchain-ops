@@ -7,9 +7,9 @@ trait KafkaConsumerConfigurationTrait extends KafkaClientConfig {
 
   def autoOffsetResetConfig: String
 
-  def batchSize: Option[Int]
+  def batchSize: Int
 
-  def batchDurationMs: Option[Long]
+  def batchDurationMs: Long
 
 }
 
@@ -17,6 +17,6 @@ case class KafkaConsumerConfiguration(
   override val bootstrapServers: String,
   override val groupId: String,
   override val autoOffsetResetConfig: String,
-  override val batchSize: Option[Int],
-  override val batchDurationMs: Option[Long],
+  override val batchSize: Int,
+  override val batchDurationMs: Long,
 ) extends KafkaConsumerConfigurationTrait
