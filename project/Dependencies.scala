@@ -17,7 +17,15 @@ object Dependencies {
     "org.typelevel" %% "cats-effect" % catsEffectVersion,
     "co.fs2" %% "fs2-core" % fs2CoreVersion,
 
+  )
+
+  val utils = Seq(
     "ch.qos.logback" % "logback-classic" % "1.2.11",
+
+    "com.typesafe" % "config" % "1.4.2",
+    "com.github.pureconfig" %% "pureconfig" % "0.17.1",
+    "com.github.pureconfig" %% "pureconfig-cats-effect" % "0.17.1",
+    "com.github.pureconfig" %% "pureconfig-enum" % "0.17.1",
   )
 
   val testDependencies = Seq(

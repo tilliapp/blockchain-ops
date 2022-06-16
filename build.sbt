@@ -30,6 +30,7 @@ lazy val root = (project in file("."))
     name := "asset-contract-reader",
     sharedSettings,
     libraryDependencies ++= Dependencies.core,
+    libraryDependencies ++= Dependencies.utils,
     libraryDependencies ++= Dependencies.testDependencies,
     libraryDependencies ++= Dependencies.apiDependencies,
     libraryDependencies ++= Dependencies.streamingDependencies,
