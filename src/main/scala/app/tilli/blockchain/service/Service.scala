@@ -33,7 +33,10 @@ object Service extends IOApp {
     )
 
     resources.use { implicit r =>
-      httpServer &> AssetContractReader.assetContractRequestsStream(r)
+      httpServer &>
+        AssetContractReader.assetContractRequestsStream(r)
+//      &>
+//        AssetHolderReader.assetContractStream(r)
     }.as(ExitCode.Success)
   }
 

@@ -48,17 +48,6 @@ object BlockchainClasses {
     data: Json,
   ) extends TilliEvent[Json]
 
-//  case class AssetContractRequest(
-//    assetContractAddress: Option[String],
-//    page: Option[String] = None,
-//  )
-//
-//  case class AssetContractRequestEvent(
-//    override val header: Header,
-//    override val data: AssetContractRequest,
-//  ) extends TilliEvent[AssetContractRequest]
-
-
   trait AssetContractSource[F[_]] extends DataProvider {
 
     def getAssetContract(
@@ -66,6 +55,12 @@ object BlockchainClasses {
       assetContractAddress: String,
       rateLimiter: Limiter[F],
     ): F[Either[HttpClientErrorTrait, Json]]
-
   }
+
+  case class AssetContractHolderRequest(
+    assetContractAddress: Option[String],
+    openSeaCollectionSlug: Option[String],
+    nextPage: Option[String],
+    previousPage: Option[String],
+  )
 }

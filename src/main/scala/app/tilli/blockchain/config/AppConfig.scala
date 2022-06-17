@@ -26,7 +26,9 @@ case class AppConfig(
   kafkaConsumerConfiguration: KafkaConsumerConfiguration,
   kafkaProducerConfiguration: KafkaProducerConfiguration,
   inputTopicAssetContractRequest: InputTopic,
-  outputTopicAssetContractRequest: OutputTopic,
+  outputTopicAssetContract: OutputTopic,
+  outputTopicAssetContractEventRequest: OutputTopic,
+  inputTopicAssetContractEventRequest: InputTopic,
   rateLimitOpenSea: RateLimitOpenSea,
 )
 

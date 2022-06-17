@@ -68,15 +68,16 @@ class OpenSeaApi[F[_] : Sync : Concurrent](
   def getEvents(
     trackingId: UUID,
     collectionSlug: String,
-    rateLimiter: Limiter[F]
+    rateLimiter: Limiter[F],
+    limit: Option[Int] = Some(50),
   ): F[Either[HttpClientErrorTrait, Json]] = {
     val path = "api/v1/events"
     val queryParams = Map(
       "collection_slug" -> collectionSlug,
-      //      "limit" -> "200",
       "only_opensea" -> "false",
       "event_type" -> "transfer",
-    )
+//      "occurred_after" -> "",
+    ) ++ limit.map(l => Map("limit" -> s"$l")).getOrElse(Map.empty)
 
     rateLimiter.submit(
       SimpleHttpClient

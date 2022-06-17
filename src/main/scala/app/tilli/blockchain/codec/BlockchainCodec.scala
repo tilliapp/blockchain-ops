@@ -1,6 +1,6 @@
 package app.tilli.blockchain.codec
 
-import app.tilli.blockchain.codec.BlockchainClasses.{Header, Origin, TilliJsonEvent}
+import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.serializer.Fs2KafkaCodec
 import app.tilli.serializer.Fs2KafkaCodec.jsonDeserializer
 import cats.effect.IO
@@ -15,6 +15,7 @@ object BlockchainCodec {
   implicit lazy val codecHeader: Codec[Header] = deriveCodec
   implicit lazy val codecOrigin: Codec[Origin] = deriveCodec
   implicit lazy val codecTilliJsonEvent: Codec[TilliJsonEvent] = deriveCodec
+  implicit lazy val codecAssetContractHolderRequest: Codec[AssetContractHolderRequest] = deriveCodec
 
   // FS kafka
   implicit val deserializerJson: Deserializer[IO, Json] = jsonDeserializer
