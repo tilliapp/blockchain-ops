@@ -1,4 +1,4 @@
-package app.tilli.blockchain.reader
+package app.tilli.blockchain.service
 
 import app.tilli.api.utils.{HttpClientErrorTrait, SimpleHttpClient}
 import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractSource, DataProvider}

@@ -1,4 +1,4 @@
-package app.tilli.blockchain.reader
+package app.tilli.blockchain.service
 
 import app.tilli.BlazeServer
 import app.tilli.api.utils.{BlazeHttpClient, HttpClientErrorTrait}
