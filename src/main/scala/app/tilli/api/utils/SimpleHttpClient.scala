@@ -2,11 +2,11 @@ package app.tilli.api.utils
 
 import app.tilli.logging.Logging
 import app.tilli.serializer.KeyConverter
-import cats.effect.IO
+import cats.effect.Sync
 import cats.implicits._
 import io.circe.{Decoder, Encoder}
 import org.http4s.client.Client
-import org.http4s.{Headers, Request, Uri}
+import org.http4s.{EntityDecoder, Headers, Request, Uri}
 
 import java.time.Instant
 import java.util.UUID
@@ -43,28 +43,30 @@ object HttpClientError {
 
 object SimpleHttpClient extends Logging {
 
-  def call[A, B](
+  def call[F[_] : Sync, A, B](
     host: String,
     path: String,
     queryParams: Map[String, String],
     conversion: A => B,
     headers: Headers = Headers.empty,
   )(implicit
-    client: Client[IO],
+    client: Client[F],
+    entityDecoder: EntityDecoder[F, String],
     decoder: Decoder[A],
-  ): IO[Either[HttpClientErrorTrait, B]] = {
+  ): F[Either[HttpClientErrorTrait, B]] = {
     val Right(baseUri) = Uri.fromString(s"$host/$path")
     val uri = baseUri.withQueryParams(queryParams)
 
     val call = {
       if (headers.isEmpty) client.expectOr[String](uri) _
-      else client.expectOr[String](Request[IO](uri = uri, headers = headers)) _
+      else client.expectOr[String](Request[F](uri = uri, headers = headers)) _
     }
 
     call { err =>
-      import cats.effect.unsafe.implicits.global
-      val errorMessage = new String(err.body.compile.to(Array).unsafeRunSync()) + s": ${uri.renderString}"
-      IO(log.error(errorMessage)) *> IO(
+//      import cats.effect.unsafe.implicits.global
+      // TODO: Add reading of error text using F not IO
+      val errorMessage = "ERROR - TODO ADD TEXT" //new String(err.body.compile.to(Array).unsafeRunSync()) + s": ${uri.renderString}"
+      Sync[F].delay(log.error(errorMessage)) *> Sync[F].pure(
         HttpClientError(
           message = s"An error has occurred: ${err.toString()}",
           code = Option(err.status.code.toString).filter(s => s != null && s.nonEmpty),
@@ -88,7 +90,7 @@ object SimpleHttpClient extends Logging {
       })
   }
 
-  def callPaged[A, B](
+  def callPaged[F[_] : Sync, A, B](
     host: String,
     path: String,
     pageParamKey: String,
@@ -99,11 +101,12 @@ object SimpleHttpClient extends Logging {
     uuid: Option[UUID] = None,
     sleepMs: DurationInt = 250
   )(implicit
-    client: Client[IO],
+    client: Client[F],
+    entityDecoder: EntityDecoder[F, String],
     decoder: Decoder[A],
     encoder: Encoder[B],
-  ): IO[List[Either[HttpClientErrorTrait, B]]] = {
-    val stream: fs2.Stream[IO, Either[HttpClientErrorTrait, B]] =
+  ): F[List[Either[HttpClientErrorTrait, B]]] = {
+    val stream: fs2.Stream[F, Either[HttpClientErrorTrait, B]] =
       fs2.Stream.unfoldLoopEval(s = "")(page => {
         import io.circe.optics.JsonPath.root
         import io.circe.syntax.EncoderOps

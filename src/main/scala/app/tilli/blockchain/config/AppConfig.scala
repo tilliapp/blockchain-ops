@@ -1,8 +1,8 @@
 package app.tilli.blockchain.config
 
 import app.tilli.api.utils.HttpClientConfig
-import app.tilli.persistence.kafka.KafkaConsumerConfiguration
-import app.tilli.utils.InputTopic
+import app.tilli.persistence.kafka.{KafkaConsumerConfiguration, KafkaProducerConfiguration}
+import app.tilli.utils.{InputTopic, OutputTopic}
 import pureconfig.ConfigReader
 import pureconfig.generic.semiauto.deriveReader
 
@@ -24,7 +24,9 @@ case class AppConfig(
   environment: String,
   httpClientConfig: HttpClientConfig,
   kafkaConsumerConfiguration: KafkaConsumerConfiguration,
-  inputTopic: InputTopic,
+  kafkaProducerConfiguration: KafkaProducerConfiguration,
+  inputTopicAssetContractRequest: InputTopic,
+  outputTopicAssetContractRequest: OutputTopic,
   rateLimitOpenSea: RateLimitOpenSea,
 )
 
@@ -33,6 +35,8 @@ object AppConfig {
   implicit val readerRateLimitOpenSea: ConfigReader[RateLimitOpenSea] = deriveReader[RateLimitOpenSea]
   implicit val readerHttpClientConfig: ConfigReader[HttpClientConfig] = deriveReader[HttpClientConfig]
   implicit val readerInputTopic: ConfigReader[InputTopic] = deriveReader[InputTopic]
+  implicit val readerOutputTopic: ConfigReader[OutputTopic] = deriveReader[OutputTopic]
+  implicit val readerKafkaProducerConfiguration: ConfigReader[KafkaProducerConfiguration] = deriveReader[KafkaProducerConfiguration]
   implicit val readerKafkaConsumerConfiguration: ConfigReader[KafkaConsumerConfiguration] = deriveReader[KafkaConsumerConfiguration]
   implicit val readerAppConfig: ConfigReader[AppConfig] = deriveReader[AppConfig]
 

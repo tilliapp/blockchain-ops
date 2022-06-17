@@ -1,10 +1,9 @@
 package app.tilli.serializer
 
 import cats.effect.Sync
-import fs2.kafka.Deserializer
-import io.circe
+import fs2.kafka.{Deserializer, Serializer}
 import io.circe.parser.parse
-import io.circe.{Decoder, Json}
+import io.circe.{Decoder, Encoder, Json}
 
 import java.nio.charset.StandardCharsets
 
@@ -39,5 +38,10 @@ object Fs2KafkaCodec {
         case Left(e) => sync.raiseError(e)
       }
     }
+
+  implicit def serializer[F[_] : Sync, A: Encoder]: Serializer[F, A] = {
+    import io.circe.syntax.EncoderOps
+    Serializer.lift(event => Sync[F].pure(event.asJson.noSpaces.getBytes(StandardCharsets.UTF_8)))
+  }
 
 }
