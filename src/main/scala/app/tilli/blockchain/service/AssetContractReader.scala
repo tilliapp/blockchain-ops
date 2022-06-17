@@ -1,19 +1,15 @@
 package app.tilli.blockchain.service
 
-import app.tilli.BlazeServer
-import app.tilli.api.utils.{BlazeHttpClient, HttpClientErrorTrait}
+import app.tilli.api.utils.HttpClientErrorTrait
+import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAssetContract, DataTypeToVersion}
-import app.tilli.blockchain.config.AppConfig
-import app.tilli.blockchain.config.AppConfig.readerAppConfig
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
-import app.tilli.utils.{ApplicationConfig, OutputTopic}
-import cats.effect._
-import fs2.kafka.{CommittableOffset, ConsumerRecord, Deserializer, ProducerRecord, ProducerRecords, RecordSerializer, Serializer}
+import app.tilli.utils.{Logging, OutputTopic}
+import cats.effect.{Async, Sync}
+import fs2.kafka._
 import io.circe.Json
 import io.circe.optics.JsonPath.root
-import org.http4s.client.Client
 import upperbound.Limiter
 
 import java.time.Instant
@@ -21,42 +17,8 @@ import java.util.UUID
 import scala.concurrent.duration.DurationLong
 import scala.util.Try
 
-case class Resources(
-  appConfig: AppConfig,
-  httpClient: Client[IO],
-  openSeaRateLimiter: Limiter[IO],
-  assetContractSource: AssetContractSource[IO],
-)
+object AssetContractReader extends Logging {
 
-object AssetContractReader extends IOApp {
-
-  override def run(args: List[String]): IO[ExitCode] = {
-    implicit val async = Async[IO]
-    val concurrent = Concurrent[IO]
-
-    val resources = for {
-      appConfig <- ApplicationConfig()
-      httpClient <- BlazeHttpClient.clientWithRetry(appConfig.httpClientConfig)
-      openSeaRateLimiter <- Limiter.start[IO](
-        minInterval = appConfig.rateLimitOpenSea.minIntervalMs.milliseconds,
-        maxConcurrent = appConfig.rateLimitOpenSea.maxConcurrent,
-        maxQueued = appConfig.rateLimitOpenSea.maxQueued,
-      )
-      openSeaApi <- Resource.eval(IO(new OpenSeaApi[IO](httpClient, concurrent)))
-    } yield Resources(
-      appConfig,
-      httpClient,
-      openSeaRateLimiter,
-      openSeaApi,
-    )
-
-    resources.use { implicit r =>
-      reader.httpServer &> reader.assetContractRequestsStream(r)
-    }.as(ExitCode.Success)
-  }
-}
-
-object reader {
   def assetContractRequestsStream[F[_] : Async](
     r: Resources,
   )(implicit
@@ -83,8 +45,10 @@ object reader {
             val trackingId = root.trackingId.string.getOption(committable.record.value).flatMap(s => Try(UUID.fromString(s)).toOption).getOrElse(UUID.randomUUID())
             val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
             record.map {
-              case Right(json) => toProducerRecord(committable.offset, json, outputTopic, trackingId, r.assetContractSource)
-              case Left(errorTrait) => toProducerRecord(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
+              case Right(json) => toProducerRecords(committable.offset, json, outputTopic, trackingId, r.assetContractSource)
+              case Left(errorTrait) =>
+                log.error(s"Call failed: ${errorTrait.message} (code ${errorTrait.message}): ${errorTrait.headers}")
+                toErrorProducerRecords(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
             }
           }
           .through(KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
@@ -93,13 +57,6 @@ object reader {
       )
     stream.compile.drain
   }
-
-  def httpServer[F[_] : Async](implicit r: Resources): F[Unit] =
-    BlazeServer
-      .serverWithHealthCheck()
-      .serve
-      .compile
-      .drain
 
   def processRecord[F[_] : Sync : Async](
     source: AssetContractSource[F],
@@ -114,7 +71,7 @@ object reader {
     ).flatTap(e => Sync[F].delay(println(e)))
   }
 
-  def toProducerRecord[F[_]](
+  def toProducerRecords[F[_]](
     offset: CommittableOffset[F],
     record: Json,
     outputTopic: OutputTopic,
@@ -124,7 +81,7 @@ object reader {
     val key = root.address.string.getOption(record).orNull
     val sourced = root.sourced.long.getOption(record).getOrElse(Instant.now().toEpochMilli)
     val tilliJsonEvent = TilliJsonEvent(
-      Header(
+      BlockchainClasses.Header(
         trackingId = trackingId,
         eventTimestamp = Instant.now().toEpochMilli,
         eventId = UUID.randomUUID(),
@@ -142,6 +99,36 @@ object reader {
     )
     val producerRecord = ProducerRecord(outputTopic.name, key, tilliJsonEvent)
     ProducerRecords.one(producerRecord, offset)
+  }
+
+  def toErrorProducerRecords[F[_]](
+    offset: CommittableOffset[F],
+    record: Json,
+    outputTopic: OutputTopic,
+    trackingId: UUID,
+    dataProvider: DataProvider,
+  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
+    val key = root.address.string.getOption(record).orNull
+    val sourced = root.sourced.long.getOption(record).getOrElse(Instant.now().toEpochMilli)
+    val tilliJsonEvent = TilliJsonEvent(
+      BlockchainClasses.Header(
+        trackingId = trackingId,
+        eventTimestamp = Instant.now().toEpochMilli,
+        eventId = UUID.randomUUID(),
+        origin = List(
+          Origin(
+            source = Some(dataProvider.source),
+            provider = Some(dataProvider.provider),
+            sourcedTimestamp = sourced,
+          )
+        ),
+        dataType = Some(DataTypeAssetContract),
+        version = DataTypeToVersion.get(DataTypeAssetContract)
+      ),
+      data = record,
+    )
+    val producerRecord = ProducerRecord(outputTopic.name, key, tilliJsonEvent)
+    ProducerRecords(None, offset)
   }
 
 }
