@@ -1,7 +1,7 @@
 package app.tilli.blockchain.reader
 
 import app.tilli.api.utils.{HttpClientErrorTrait, SimpleHttpClient}
-import app.tilli.blockchain.codec.BlockchainClasses.DataProvider
+import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractSource, DataProvider}
 import cats.effect.{Concurrent, Sync}
 import io.circe.optics.JsonPath.root
 import io.circe.{Decoder, Json, JsonObject}
@@ -16,7 +16,7 @@ import java.util.UUID
 class OpenSeaApi[F[_] : Sync : Concurrent](
   httpClient: Client[F],
   concurrent: Concurrent[F],
-) extends DataProvider {
+) extends DataProvider with AssetContractSource[F] {
 
   override def source: UUID = UUID.fromString("7dc94bcb-c490-405b-8989-0efdace798f6")
 
@@ -32,7 +32,7 @@ class OpenSeaApi[F[_] : Sync : Concurrent](
   private implicit val decoderJson: Decoder[Json] = Decoder.decodeJson
   private implicit val client: Client[F] = httpClient
 
-  def getAssetContract(
+  override def getAssetContract(
     trackingId: UUID,
     assetContractAddress: String,
     rateLimiter: Limiter[F],

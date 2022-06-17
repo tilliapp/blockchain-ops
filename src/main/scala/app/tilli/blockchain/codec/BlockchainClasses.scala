@@ -1,6 +1,8 @@
 package app.tilli.blockchain.codec
 
+import app.tilli.api.utils.HttpClientErrorTrait
 import io.circe.Json
+import upperbound.Limiter
 
 import java.util.UUID
 
@@ -56,4 +58,14 @@ object BlockchainClasses {
 //    override val data: AssetContractRequest,
 //  ) extends TilliEvent[AssetContractRequest]
 
+
+  trait AssetContractSource[F[_]] extends DataProvider {
+
+    def getAssetContract(
+      trackingId: UUID,
+      assetContractAddress: String,
+      rateLimiter: Limiter[F],
+    ): F[Either[HttpClientErrorTrait, Json]]
+
+  }
 }
