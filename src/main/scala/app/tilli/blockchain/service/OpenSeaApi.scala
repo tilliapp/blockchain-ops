@@ -67,13 +67,14 @@ class OpenSeaApi[F[_] : Sync : Concurrent](
     )
   }
 
-  override def getAssetContractSlug(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String] =
+  override def getAssetContractAddress(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String] =
     root.openSeaCollectionSlug.string.getOption(tilliJsonEvent.data)
       .toRight(new IllegalStateException(s"No slug could be extracted from event $tilliJsonEvent"))
 
   override def getAssetEventRequest(
     trackingId: UUID,
     assetContractAddress: String,
+    nextPage: Option[String],
     rateLimiter: Limiter[F],
   ): F[Either[HttpClientErrorTrait, Json]] = {
     val path = "api/v1/events"
@@ -83,7 +84,7 @@ class OpenSeaApi[F[_] : Sync : Concurrent](
       "event_type" -> "transfer",
       "limit" -> "50",
       //      "occurred_after" -> "",
-    )
+    ) ++ nextPage.map(np => Map("cursor" -> np)).getOrElse(Map.empty)
 
     rateLimiter.submit(
       SimpleHttpClient

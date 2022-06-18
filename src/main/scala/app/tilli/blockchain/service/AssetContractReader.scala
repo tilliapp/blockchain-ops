@@ -108,7 +108,6 @@ object AssetContractReader extends Logging {
       assetContractAddress = root.address.string.getOption(record),
       openSeaCollectionSlug = root.openSeaSlug.string.getOption(record),
       nextPage = None,
-      previousPage = None,
     )
 
     val tilliJsonEvent2 = TilliJsonEvent(
