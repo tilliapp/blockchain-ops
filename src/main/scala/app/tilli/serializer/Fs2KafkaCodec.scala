@@ -41,7 +41,7 @@ object Fs2KafkaCodec {
 
   implicit def serializer[F[_] : Sync, A: Encoder]: Serializer[F, A] = {
     import io.circe.syntax.EncoderOps
-    Serializer.lift(event => Sync[F].pure(event.asJson.noSpaces.getBytes(StandardCharsets.UTF_8)))
+    fs2.kafka.Serializer.lift(event => Sync[F].pure(event.asJson.noSpaces.getBytes(StandardCharsets.UTF_8)))
   }
 
 }

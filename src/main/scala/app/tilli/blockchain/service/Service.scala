@@ -30,13 +30,13 @@ object Service extends IOApp {
       httpClient,
       openSeaRateLimiter,
       openSeaApi,
+      openSeaApi,
     )
 
     resources.use { implicit r =>
       httpServer &>
-        AssetContractReader.assetContractRequestsStream(r)
-//      &>
-//        AssetHolderReader.assetContractStream(r)
+        AssetContractReader.assetContractRequestsStream(r) &>
+        AssetContractEventReader.assetContractEventRequestStream(r)
     }.as(ExitCode.Success)
   }
 

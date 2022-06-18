@@ -2,11 +2,11 @@ package app.tilli.blockchain.codec
 
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.serializer.Fs2KafkaCodec
-import app.tilli.serializer.Fs2KafkaCodec.jsonDeserializer
+import app.tilli.serializer.Fs2KafkaCodec.{classDeserializer, jsonDeserializer}
 import cats.effect.IO
-import fs2.kafka.{Deserializer, RecordSerializer, Serializer}
-import io.circe.{Codec, Json}
+import fs2.kafka.{Deserializer, Serializer}
 import io.circe.generic.semiauto.deriveCodec
+import io.circe.{Codec, Json}
 
 object BlockchainCodec {
 
@@ -19,8 +19,9 @@ object BlockchainCodec {
 
   // FS kafka
   implicit val deserializerJson: Deserializer[IO, Json] = jsonDeserializer
-  implicit val serializerJson: Serializer[IO, Json] = Fs2KafkaCodec.serializer
+  implicit val deserializerTilliJsonEvent: Deserializer[IO, TilliJsonEvent] = classDeserializer
 
+  implicit val serializerJson: Serializer[IO, Json] = Fs2KafkaCodec.serializer
   implicit val serializerTilliJsonEvent: Serializer[IO, TilliJsonEvent] = Fs2KafkaCodec.serializer
 
 

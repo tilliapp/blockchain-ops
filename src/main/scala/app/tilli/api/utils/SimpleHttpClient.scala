@@ -8,11 +8,12 @@ import io.circe.{Decoder, Encoder}
 import org.http4s.client.Client
 import org.http4s.{EntityDecoder, Headers, Request, Uri}
 
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 
-trait HttpClientErrorTrait {
+trait HttpClientErrorTrait extends Throwable {
   def message: String
 
   def code: Option[String]
@@ -27,7 +28,7 @@ case class HttpClientError(
   override val code: Option[String],
   override val reason: Option[String],
   override val headers: Option[Headers],
-) extends Throwable with HttpClientErrorTrait
+) extends HttpClientErrorTrait
 
 object HttpClientError {
 
@@ -63,17 +64,18 @@ object SimpleHttpClient extends Logging {
     }
 
     call { err =>
-//      import cats.effect.unsafe.implicits.global
-      // TODO: Add reading of error text using F not IO
-      val errorMessage = "ERROR - TODO ADD TEXT" //new String(err.body.compile.to(Array).unsafeRunSync()) + s": ${uri.renderString}"
-      Sync[F].delay(log.error(errorMessage)) *> Sync[F].pure(
-        HttpClientError(
-          message = s"An error has occurred: ${err.toString()}",
-          code = Option(err.status.code.toString).filter(s => s != null && s.nonEmpty),
-          reason = Option(err.status.reason).filter(s => s != null && s.nonEmpty),
-          headers = Option(err.headers),
+      err.body.compile.toList.map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
+        .flatMap(errorMessage =>
+          Sync[F].delay(log.error(s"Error while calling endpoint ${uri.renderString}: ${err.toString()}: $errorMessage")) *>
+            Sync[F].pure(
+              HttpClientError(
+                message = s"An error has occurred: ${err.toString()}",
+                code = Option(err.status.code.toString).filter(s => s != null && s.nonEmpty),
+                reason = Option(err.status.reason).filter(s => s != null && s.nonEmpty),
+                headers = Option(err.headers),
+              )
+            )
         )
-      )
     }
       .attempt
       .map(_

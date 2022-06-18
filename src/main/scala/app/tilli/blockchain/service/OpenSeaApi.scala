@@ -1,10 +1,10 @@
 package app.tilli.blockchain.service
 
 import app.tilli.api.utils.{HttpClientErrorTrait, SimpleHttpClient}
-import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractSource, DataProvider}
+import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractEventSource, AssetContractSource, DataProvider, TilliJsonEvent}
 import cats.effect.{Concurrent, Sync}
 import io.circe.optics.JsonPath.root
-import io.circe.{Decoder, Json, JsonObject}
+import io.circe.{Decoder, Json}
 import org.http4s.client.Client
 import org.http4s.{EntityDecoder, Header, Headers}
 import org.typelevel.ci.CIString
@@ -16,7 +16,9 @@ import java.util.UUID
 class OpenSeaApi[F[_] : Sync : Concurrent](
   httpClient: Client[F],
   concurrent: Concurrent[F],
-) extends DataProvider with AssetContractSource[F] {
+) extends DataProvider
+  with AssetContractSource[F]
+  with AssetContractEventSource[F] {
 
   override def source: UUID = UUID.fromString("7dc94bcb-c490-405b-8989-0efdace798f6")
 
@@ -65,19 +67,23 @@ class OpenSeaApi[F[_] : Sync : Concurrent](
     )
   }
 
-  def getEvents(
+  override def getAssetContractSlug(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String] =
+    root.openSeaCollectionSlug.string.getOption(tilliJsonEvent.data)
+      .toRight(new IllegalStateException(s"No slug could be extracted from event $tilliJsonEvent"))
+
+  override def getAssetEventRequest(
     trackingId: UUID,
-    collectionSlug: String,
+    assetContractAddress: String,
     rateLimiter: Limiter[F],
-    limit: Option[Int] = Some(50),
   ): F[Either[HttpClientErrorTrait, Json]] = {
     val path = "api/v1/events"
     val queryParams = Map(
-      "collection_slug" -> collectionSlug,
+      "collection_slug" -> assetContractAddress,
       "only_opensea" -> "false",
       "event_type" -> "transfer",
-//      "occurred_after" -> "",
-    ) ++ limit.map(l => Map("limit" -> s"$l")).getOrElse(Map.empty)
+      "limit" -> "50",
+      //      "occurred_after" -> "",
+    )
 
     rateLimiter.submit(
       SimpleHttpClient

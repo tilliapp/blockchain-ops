@@ -29,6 +29,7 @@ case class AppConfig(
   outputTopicAssetContract: OutputTopic,
   outputTopicAssetContractEventRequest: OutputTopic,
   inputTopicAssetContractEventRequest: InputTopic,
+  outputTopicAssetContractEvent: OutputTopic,
   rateLimitOpenSea: RateLimitOpenSea,
 )
 

@@ -6,7 +6,8 @@ object Dependencies {
   val catsEffectVersion = "3.3.12"
   val http4sVersion = "0.23.12"
   val fs2CoreVersion = "3.2.8"
-  val fs2Version = "2.5.0-M3"
+  val fs2KafkaVersion = "2.5.0-M3"
+//  val fs2KafkaVersion = "3.0.0-M7"
   val circeVersion = "0.14.1"
 
   val tapirVersion = "1.0.0"
@@ -44,7 +45,7 @@ object Dependencies {
   )
 
   val streamingDependencies = Seq(
-    "com.github.fd4s" %% "fs2-kafka" % fs2Version,
+    "com.github.fd4s" %% "fs2-kafka" % fs2KafkaVersion,
   )
 
   val serdesDependencies = Seq(

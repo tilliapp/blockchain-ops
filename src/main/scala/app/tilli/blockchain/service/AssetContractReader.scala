@@ -72,7 +72,7 @@ object AssetContractReader extends Logging {
       record.key.getOrElse(UUID.randomUUID()),
       root.assetContractAddress.string.getOption(record.value).get,
       rateLimiter
-    ).flatTap(e => Sync[F].delay(println(e)))
+    )//.flatTap(e => Sync[F].delay(println(e)))
   }
 
   def toProducerRecords[F[_]](
@@ -104,7 +104,6 @@ object AssetContractReader extends Logging {
     )
     val assetContractProducerRecord = ProducerRecord(assetContractTopic.name, key, tilliJsonEvent1)
 
-    val assetContractAddress = root.address.string.getOption(record)
     val addressRequest = AssetContractHolderRequest(
       assetContractAddress = root.address.string.getOption(record),
       openSeaCollectionSlug = root.openSeaSlug.string.getOption(record),

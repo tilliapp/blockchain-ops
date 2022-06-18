@@ -55,6 +55,19 @@ object BlockchainClasses {
       assetContractAddress: String,
       rateLimiter: Limiter[F],
     ): F[Either[HttpClientErrorTrait, Json]]
+
+  }
+
+  trait AssetContractEventSource[F[_]] {
+
+    def getAssetEventRequest(
+      trackingId: UUID,
+      assetContractAddress: String,
+      rateLimiter: Limiter[F],
+    ): F[Either[HttpClientErrorTrait, Json]]
+
+    def getAssetContractSlug(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String]
+
   }
 
   case class AssetContractHolderRequest(
