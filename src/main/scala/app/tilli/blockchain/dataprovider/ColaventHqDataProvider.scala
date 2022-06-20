@@ -1,206 +1,94 @@
-//package app.tilli.blockchain.dataprovider
-//
-//import app.tilli.blockchain.codec.BlockchainClasses
-//import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, TransactionEventSource}
-//import org.http4s.client.Client
-//
-//import java.util.UUID
-//
-//class ColaventHqDataProvider[F[_]](
-//  httpClient: Client[F],
-//)
-//  extends DataProvider
-//  with TransactionEventSource[F]  {
-//
-//  //       {
-//  //        "block_signed_at": "2022-06-09T15:37:45Z",
-//  //        "block_height": 14933373,
-//  //        "tx_hash": "0x139de7f5924f71869e44812048ac514d4c55c64d395d18619404911f434a10ae",
-//  //        "tx_offset": 39,
-//  //        "successful": true,
-//  //        "from_address": "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e",
-//  //        "from_address_label": null,
-//  //        "to_address": "0x7f268357a8c2552623316e2562d90e642bb538e5",
-//  //        "to_address_label": "Wyvern Exchange Contract (-)",
-//  //        "value": "190000000000000000",
-//  //        "value_quote": 341.21170410156253,
-//  //        "gas_offered": 336829,
-//  //        "gas_spent": 244229,
-//  //        "gas_price": 67601952068,
-//  //        "fees_paid": "16510357151615572",
-//  //        "gas_quote": 29.650142626464042,
-//  //        "gas_quote_rate": 1795.85107421875,
-//  //        "log_events": [
-//  //          {
-//  //            "block_signed_at": "2022-06-09T15:37:45Z",
-//  //            "block_height": 14933373,
-//  //            "tx_offset": 39,
-//  //            "log_offset": 56,
-//  //            "tx_hash": "0x139de7f5924f71869e44812048ac514d4c55c64d395d18619404911f434a10ae",
-//  //            "raw_log_topics": [
-//  //              "0xc4109843e0b7d514e4c093114b863f8e7d8d9a458c372cd51bfe526b588006c9",
-//  //              "0x000000000000000000000000cfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
-//  //              "0x000000000000000000000000becb05b9335fc0c53aeab1c09733cdf9a0cde85e",
-//  //              "0x0000000000000000000000000000000000000000000000000000000000000000"
-//  //            ],
-//  //            "sender_contract_decimals": 0,
-//  //            "sender_name": "Wyvern Exchange Contract",
-//  //            "sender_contract_ticker_symbol": null,
-//  //            "sender_address": "0x7f268357a8c2552623316e2562d90e642bb538e5",
-//  //            "sender_address_label": "Wyvern Exchange Contract (-)",
-//  //            "sender_logo_url": "https://logos.covalenthq.com/tokens/1/0x7f268357a8c2552623316e2562d90e642bb538e5.png",
-//  //            "raw_log_data": "0x000000000000000000000000000000000000000000000000000000000000000037975ab6fea9d75320c8f78607815dec2555de17c8b0a6d8acd6b8ae5add807b00000000000000000000000000000000000000000000000002a303fe4b530000",
-//  //            "decoded": {
-//  //              "name": "OrdersMatched",
-//  //              "signature": "OrdersMatched(bytes32 buyHash, bytes32 sellHash, indexed address maker, indexed address taker, uint256 price, indexed bytes32 metadata)",
-//  //              "params": [
-//  //                {
-//  //                  "name": "buyHash",
-//  //                  "type": "bytes32",
-//  //                  "indexed": false,
-//  //                  "decoded": true,
-//  //                  "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-//  //                },
-//  //                {
-//  //                  "name": "sellHash",
-//  //                  "type": "bytes32",
-//  //                  "indexed": false,
-//  //                  "decoded": true,
-//  //                  "value": "N5datv6p11MgyPeGB4Fd7CVV3hfIsKbYrNa4rlrdgHs="
-//  //                },
-//  //                {
-//  //                  "name": "maker",
-//  //                  "type": "address",
-//  //                  "indexed": true,
-//  //                  "decoded": true,
-//  //                  "value": "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab"
-//  //                },
-//  //                {
-//  //                  "name": "taker",
-//  //                  "type": "address",
-//  //                  "indexed": true,
-//  //                  "decoded": true,
-//  //                  "value": "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e"
-//  //                },
-//  //                {
-//  //                  "name": "price",
-//  //                  "type": "uint256",
-//  //                  "indexed": false,
-//  //                  "decoded": true,
-//  //                  "value": "190000000000000000"
-//  //                },
-//  //                {
-//  //                  "name": "metadata",
-//  //                  "type": "bytes32",
-//  //                  "indexed": true,
-//  //                  "decoded": true,
-//  //                  "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-//  //                }
-//  //              ]
-//  //            }
-//  //          },
-//  //          {
-//  //            "block_signed_at": "2022-06-09T15:37:45Z",
-//  //            "block_height": 14933373,
-//  //            "tx_offset": 39,
-//  //            "log_offset": 55,
-//  //            "tx_hash": "0x139de7f5924f71869e44812048ac514d4c55c64d395d18619404911f434a10ae",
-//  //            "raw_log_topics": [
-//  //              "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-//  //              "0x000000000000000000000000cfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
-//  //              "0x000000000000000000000000becb05b9335fc0c53aeab1c09733cdf9a0cde85e",
-//  //              "0x00000000000000000000000000000000000000000000000000000000000004e8"
-//  //            ],
-//  //            "sender_contract_decimals": 0,
-//  //            "sender_name": "Philosophical Foxes V2",
-//  //            "sender_contract_ticker_symbol": "FOX",
-//  //            "sender_address": "0x55256178afe74082c4f9afef7e40fec949c1b499",
-//  //            "sender_address_label": null,
-//  //            "sender_logo_url": "https://logos.covalenthq.com/tokens/1/0x55256178afe74082c4f9afef7e40fec949c1b499.png",
-//  //            "raw_log_data": null,
-//  //            "decoded": {
-//  //              "name": "Transfer",
-//  //              "signature": "Transfer(indexed address from, indexed address to, uint256 value)",
-//  //              "params": [
-//  //                {
-//  //                  "name": "from",
-//  //                  "type": "address",
-//  //                  "indexed": true,
-//  //                  "decoded": true,
-//  //                  "value": "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab"
-//  //                },
-//  //                {
-//  //                  "name": "to",
-//  //                  "type": "address",
-//  //                  "indexed": true,
-//  //                  "decoded": true,
-//  //                  "value": "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e"
-//  //                },
-//  //                {
-//  //                  "name": "value",
-//  //                  "type": "uint256",
-//  //                  "indexed": false,
-//  //                  "decoded": false,
-//  //                  "value": null
-//  //                }
-//  //              ]
-//  //            }
-//  //          },
-//  //          {
-//  //            "block_signed_at": "2022-06-09T15:37:45Z",
-//  //            "block_height": 14933373,
-//  //            "tx_offset": 39,
-//  //            "log_offset": 54,
-//  //            "tx_hash": "0x139de7f5924f71869e44812048ac514d4c55c64d395d18619404911f434a10ae",
-//  //            "raw_log_topics": [
-//  //              "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
-//  //              "0x000000000000000000000000cfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
-//  //              "0x0000000000000000000000000000000000000000000000000000000000000000",
-//  //              "0x00000000000000000000000000000000000000000000000000000000000004e8"
-//  //            ],
-//  //            "sender_contract_decimals": 0,
-//  //            "sender_name": "Philosophical Foxes V2",
-//  //            "sender_contract_ticker_symbol": "FOX",
-//  //            "sender_address": "0x55256178afe74082c4f9afef7e40fec949c1b499",
-//  //            "sender_address_label": null,
-//  //            "sender_logo_url": "https://logos.covalenthq.com/tokens/1/0x55256178afe74082c4f9afef7e40fec949c1b499.png",
-//  //            "raw_log_data": null,
-//  //            "decoded": {
-//  //              "name": "Approval",
-//  //              "signature": "Approval(indexed address owner, indexed address spender, uint256 value)",
-//  //              "params": [
-//  //                {
-//  //                  "name": "owner",
-//  //                  "type": "address",
-//  //                  "indexed": true,
-//  //                  "decoded": true,
-//  //                  "value": "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab"
-//  //                },
-//  //                {
-//  //                  "name": "spender",
-//  //                  "type": "address",
-//  //                  "indexed": true,
-//  //                  "decoded": true,
-//  //                  "value": "0x0000000000000000000000000000000000000000"
-//  //                },
-//  //                {
-//  //                  "name": "value",
-//  //                  "type": "uint256",
-//  //                  "indexed": false,
-//  //                  "decoded": false,
-//  //                  "value": null
-//  //                }
-//  //              ]
-//  //            }
-//  //          }
-//  //        ]
-//  //      }
-//
-//  override def source: UUID = ???
-//
-//  override def provider: UUID = ???
-//
-//  override def getTransactionEvents(tilliJsonEvent: BlockchainClasses.TilliJsonEvent): Either[Throwable, BlockchainClasses.TilliJsonEvent] = ???
-//
-//
-//}
+package app.tilli.blockchain.dataprovider
+
+import app.tilli.api.utils.SimpleHttpClient
+import app.tilli.blockchain.codec.BlockchainClasses
+import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, TransactionEventSource, TransactionEventsResult}
+import cats.effect.{Concurrent, Sync}
+import io.circe.Json
+import io.circe.optics.JsonPath.root
+import org.http4s.{Header, Headers}
+import org.http4s.client.Client
+import org.typelevel.ci.CIString
+import upperbound.Limiter
+
+import java.time.Instant
+import java.util.UUID
+
+class ColaventHqDataProvider[F[_] : Sync](
+  val httpClient: Client[F],
+  override val concurrent: Concurrent[F],
+) extends ApiProvider[F]
+  with TransactionEventSource[F] {
+
+  override val source: UUID = UUID.fromString("5f4a7bfa-482d-445d-9bda-e83937581026")
+  override val provider: UUID = UUID.fromString("0977c146-f3c5-43c5-a33b-e376eb73ba0b")
+  private val host: String = "https://api.covalenthq.com"
+  private val apiKey: String = "ckey_f488176d2b8e42829318059b90e"
+  private val headers: Headers = Headers(
+    Header.Raw(CIString("X-Api-Key"), apiKey),
+    Header.Raw(CIString("Accept"), "application/json"),
+  )
+  override implicit val client: Client[F] = httpClient
+
+  override def getTransactionEvents(
+    address: String,
+    chainId: String,
+    rateLimiter: Limiter[F],
+  ): Either[Throwable, TransactionEventsResult] = {
+
+    val path = s"v1/$chainId/address/$address/transactions_v2/"
+    rateLimiter.submit(
+      SimpleHttpClient
+        .call[F, Json, Json](
+          host = host,
+          path = path,
+          queryParams = Map(
+            "key" -> apiKey,
+          ),
+          headers = headers,
+          conversion = json => {
+
+            // getTransactionEventsFromResult()
+            Json.fromFields(
+              // TODO: Needs unit test. Fails miserably if any of those fields don't exist
+              Iterable(
+                "address" -> Json.fromString(root.address.string.getOption(json).orNull),
+                "openSeaSlug" -> Json.fromString(root.collection.slug.string.getOption(json).orNull),
+                "url" -> Json.fromString(root.collection.externalUrl.string.getOption(json).orNull),
+                "name" -> Json.fromString(root.collection.name.string.getOption(json).orNull),
+                "created" -> Json.fromString(root.createdDate.string.getOption(json).orNull),
+                "type" -> Json.fromString(root.assetContractType.string.getOption(json).orNull),
+                "schema" -> Json.fromString(root.schemaName.string.getOption(json).orNull),
+                "symbol" -> Json.fromString(root.symbol.string.getOption(json).orNull),
+                "sourced" -> Json.fromLong(Instant.now().toEpochMilli)
+                //                "description" -> Json.fromString(root.description.string.getOption(json).orNull),
+              ))
+          },
+        )
+    )
+    ???
+
+  }
+
+
+}
+
+object ColaventHqDataProvider {
+
+  def getNextPageFromResult(data: Json): Option[Int] = {
+    val hasMore = root.data.pagination.hasMore.boolean.getOption(data).getOrElse(false)
+    if (hasMore) {
+      val previousPage = root.data.pagination.pageNumber.int.getOption(data).getOrElse(0)
+      val nextPage = previousPage + 1
+      Some(nextPage)
+    } else {
+      None
+    }
+  }
+
+  def getTransactionEventsFromResult(data: Json): List[Json] = {
+    ???
+  }
+
+
+}

@@ -5,7 +5,6 @@ import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAssetContractEvent, DataTypeAssetContractEventRequest, DataTypeToVersion}
-import app.tilli.blockchain.dataprovider.AssetContractEventsResult
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
 import app.tilli.utils.{InputTopic, Logging, OutputTopic}
 import cats.effect.{Async, Sync}

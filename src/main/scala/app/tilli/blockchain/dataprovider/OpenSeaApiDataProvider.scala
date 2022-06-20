@@ -1,7 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.{HttpClientErrorTrait, SimpleHttpClient}
-import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractEventSource, AssetContractHolderRequest, AssetContractSource, DataProvider, TilliJsonEvent}
+import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractEventSource, AssetContractEventsResult, AssetContractHolderRequest, AssetContractSource, DataProvider, TilliJsonEvent}
 import app.tilli.blockchain.codec.BlockchainConfig.EventType
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
@@ -16,15 +16,10 @@ import java.time.Instant
 import java.util.UUID
 import scala.util.Try
 
-case class AssetContractEventsResult(
-  events: List[Json],
-  nextPage: Option[String],
-)
-
 class OpenSeaApi[F[_] : Sync](
-  httpClient: Client[F],
-  concurrent: Concurrent[F],
-) extends DataProvider
+  val httpClient: Client[F],
+  override val concurrent: Concurrent[F],
+) extends ApiProvider[F]
   with AssetContractSource[F]
   with AssetContractEventSource[F] {
 
@@ -33,15 +28,16 @@ class OpenSeaApi[F[_] : Sync](
   override val source: UUID = UUID.fromString("7dc94bcb-c490-405b-8989-0efdace798f6")
   override val provider: UUID = UUID.fromString("2365f620-d5b9-43c6-9dd4-986ee8477167")
 
-  private val openseaApiKey: String = "f4104ad1cfc544cdaa7d4e1fb1273fc8"
-  private val openseaHost: String = "https://api.opensea.io"
-  private val openseaHeaders: Headers = Headers(
-    Header.Raw(CIString("X-Api-Key"), openseaApiKey),
+  private val host: String = "https://api.opensea.io"
+  private val apiKey: String = "f4104ad1cfc544cdaa7d4e1fb1273fc8"
+  private val headers: Headers = Headers(
+    Header.Raw(CIString("X-Api-Key"), apiKey),
     Header.Raw(CIString("Accept"), "application/json"),
   )
-  private implicit val entityDecoderString: EntityDecoder[F, String] = EntityDecoder.text(concurrent)
-  private implicit val decoderJson: Decoder[Json] = Decoder.decodeJson
-  private implicit val client: Client[F] = httpClient
+
+//  private implicit val entityDecoderString: EntityDecoder[F, String] = EntityDecoder.text(concurrent)
+//  private implicit val decoderJson: Decoder[Json] = Decoder.decodeJson
+  override implicit val client: Client[F] = httpClient
 
   override def getAssetContract(
     trackingId: UUID,
@@ -52,7 +48,7 @@ class OpenSeaApi[F[_] : Sync](
     rateLimiter.submit(
       SimpleHttpClient
         .call[F, Json, Json](
-          host = openseaHost,
+          host = host,
           path = path,
           queryParams = Map.empty,
           conversion = json => {
@@ -71,7 +67,7 @@ class OpenSeaApi[F[_] : Sync](
                 //                "description" -> Json.fromString(root.description.string.getOption(json).orNull),
               ))
           },
-          headers = openseaHeaders,
+          headers = headers,
         )
     )
   }
@@ -99,11 +95,11 @@ class OpenSeaApi[F[_] : Sync](
       result <- EitherT(rateLimiter.submit(
         SimpleHttpClient
           .call[F, Json, Json](
-            host = openseaHost,
+            host = host,
             path = path,
             queryParams = queryParams,
             conversion = json => json,
-            headers = openseaHeaders,
+            headers = headers,
           )
       ))
       events <- EitherT(Sync[F].pure(Right(assetContractEventsFromResult(result)).asInstanceOf[Either[HttpClientErrorTrait, List[Json]]]))

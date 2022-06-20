@@ -1,7 +1,6 @@
 package app.tilli.blockchain.codec
 
 import app.tilli.api.utils.HttpClientErrorTrait
-import app.tilli.blockchain.dataprovider.AssetContractEventsResult
 import io.circe.Json
 import upperbound.Limiter
 
@@ -59,6 +58,11 @@ object BlockchainClasses {
 
   }
 
+  case class AssetContractEventsResult(
+    events: List[Json],
+    nextPage: Option[String],
+  )
+
   trait AssetContractEventSource[F[_]] {
 
     def getAssetContractEvents(
@@ -71,9 +75,19 @@ object BlockchainClasses {
     def getAssetContractAddress(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String]
   }
 
+  case class TransactionEventsResult(
+    events: List[Json],
+    nextPage: Option[String],
+  )
+
+
   trait TransactionEventSource[F[_]] {
 
-    def getTransactionEvents(tilliJsonEvent: TilliJsonEvent): Either[Throwable, TilliJsonEvent]
+    def getTransactionEvents(
+      address: String,
+      chainId: String,
+      rateLimiter: Limiter[F],
+    ): Either[Throwable, TransactionEventsResult]
 
   }
 
