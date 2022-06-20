@@ -49,7 +49,7 @@ object AssetContractReader extends Logging {
             val trackingId = root.trackingId.string.getOption(committable.record.value).flatMap(s => Try(UUID.fromString(s)).toOption).getOrElse(UUID.randomUUID())
             val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
             record.map {
-              case Right(json) => toProducerRecords(committable.offset, json, outputTopicAssetContract,outputTopicAssetContractRequest, trackingId, r.assetContractSource)
+              case Right(json) => toProducerRecords(committable.offset, json, outputTopicAssetContract, outputTopicAssetContractRequest, trackingId, r.assetContractSource)
               case Left(errorTrait) =>
                 log.error(s"Call failed: ${errorTrait.message} (code ${errorTrait.message}): ${errorTrait.headers}")
                 toErrorProducerRecords(committable.offset, Json.Null, outputTopicAssetContract, trackingId, r.assetContractSource)
@@ -68,11 +68,12 @@ object AssetContractReader extends Logging {
     rateLimiter: Limiter[F],
   ): F[Either[HttpClientErrorTrait, Json]] = {
     import cats.implicits._
-    Sync[F].delay(println(s"Processing record: $record")) *> source.getAssetContract(
-      record.key.getOrElse(UUID.randomUUID()),
-      root.assetContractAddress.string.getOption(record.value).get,
-      rateLimiter
-    )//.flatTap(e => Sync[F].delay(println(e)))
+    Sync[F].delay(println(s"Processing record: $record")) *>
+      source.getAssetContract(
+        record.key.getOrElse(UUID.randomUUID()),
+        root.assetContractAddress.string.getOption(record.value).get,
+        rateLimiter
+      ) //.flatTap(e => Sync[F].delay(println(e)))
   }
 
   def toProducerRecords[F[_]](

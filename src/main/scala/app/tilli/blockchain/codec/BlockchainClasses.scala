@@ -1,6 +1,7 @@
 package app.tilli.blockchain.codec
 
 import app.tilli.api.utils.HttpClientErrorTrait
+import app.tilli.blockchain.dataprovider.AssetContractEventsResult
 import io.circe.Json
 import upperbound.Limiter
 
@@ -60,14 +61,19 @@ object BlockchainClasses {
 
   trait AssetContractEventSource[F[_]] {
 
-    def getAssetEventRequest(
+    def getAssetContractEvents(
       trackingId: UUID,
       assetContractAddress: String,
       nextPage: Option[String],
       rateLimiter: Limiter[F],
-    ): F[Either[HttpClientErrorTrait, Json]]
+    ): F[Either[HttpClientErrorTrait, AssetContractEventsResult]]
 
     def getAssetContractAddress(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String]
+  }
+
+  trait TransactionEventSource[F[_]] {
+
+    def getTransactionEvents(tilliJsonEvent: TilliJsonEvent): Either[Throwable, TilliJsonEvent]
 
   }
 

@@ -4,6 +4,7 @@ import app.tilli.BlazeServer
 import app.tilli.api.utils.BlazeHttpClient
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.config.AppConfig.readerAppConfig
+import app.tilli.blockchain.dataprovider.OpenSeaApi
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
 import upperbound.Limiter
