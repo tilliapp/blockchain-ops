@@ -50,8 +50,14 @@ object AssetContractEventReader extends Logging {
             record.map {
               case Right(json) => toProducerRecords(committable.record, committable.offset, json, outputTopic, inputTopic, trackingId, r.assetContractSource)
               case Left(errorTrait) =>
-                log.error(s"Call failed: ${errorTrait.message} (code ${errorTrait.message}): ${errorTrait.headers}")
-                toErrorProducerRecords(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
+                // TODO: If error code is 429 then send it back into the queue
+                log.error(s"Call failed: ${errorTrait.message} (code ${errorTrait.code}): ${errorTrait.headers}")
+                errorTrait.code match {
+                  case Some("429") =>
+                    log.error(s"Request got throttled by data provider. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
+                    toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
+                  case _ => toErrorProducerRecords(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
+                }
             }
           }
           .through(KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
@@ -69,13 +75,13 @@ object AssetContractEventReader extends Logging {
     import cats.implicits._
     source.getAssetContractAddress(record.value) match {
       case Right(assetContractAddress) =>
-//        Sync[F].delay(println(s"Processing record: $record")) *>
-          source.getAssetEventRequest(
+        //        Sync[F].delay(println(s"Processing record: $record")) *>
+        source.getAssetEventRequest(
           record.value.header.trackingId,
           assetContractAddress,
           root.nextPage.string.getOption(record.value.data),
           rateLimiter
-        ) //.flatTap(e => Sync[F].delay(println(e)))
+        ) //.flatTap(e   => Sync[F].delay(println(e)))
       case Left(err) => Sync[F].pure(Left(HttpClientError(err)))
     }
   }
@@ -91,19 +97,19 @@ object AssetContractEventReader extends Logging {
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val sourcedTime = Instant.now.toEpochMilli
 
-    val producerRecords = root.assetEvents.each.json.getAll(data).map { assetJson =>
+    val producerRecords = root.assetEvents.each.json.getAll(data).map { eventJson =>
       // TODO: Needs unit test. Fails miserably if any of those fields don't exist
-      val transactionHash = root.transaction.transactionHash.string.getOption(assetJson)
-      val toAddress = root.toAccount.address.string.getOption(assetJson) // toAccount when transfer
+      val transactionHash = root.transaction.transactionHash.string.getOption(eventJson)
+      val toAddress = root.toAccount.address.string.getOption(eventJson) // toAccount when transfer
       val data = Json.fromFields(
         Iterable(
           "transactionHash" -> transactionHash.map(Json.fromString),
-          "eventType" -> root.eventType.string.getOption(assetJson).map(Json.fromString),
-          "fromAddress" -> root.fromAccount.address.string.getOption(assetJson).map(Json.fromString), // fromAccount when transfer
+          "eventType" -> root.eventType.string.getOption(eventJson).map(Json.fromString),
+          "fromAddress" -> root.fromAccount.address.string.getOption(eventJson).map(Json.fromString), // fromAccount when transfer
           "toAddress" -> toAddress.map(Json.fromString), // toAccount when transfer
-          "tokenId" -> root.asset.tokenId.string.getOption(assetJson).map(Json.fromString),
-          "quantity" -> root.quantity.string.getOption(assetJson).flatMap(s => Try(s.toLong).toOption.map(Json.fromLong)),
-          "transactionTime" -> root.eventTimestamp.string.getOption(assetJson)
+          "tokenId" -> root.asset.tokenId.string.getOption(eventJson).map(Json.fromString),
+          "quantity" -> root.quantity.string.getOption(eventJson).flatMap(s => Try(s.toLong).toOption.map(Json.fromLong)),
+          "transactionTime" -> root.eventTimestamp.string.getOption(eventJson)
             .map(ts => if (!ts.toLowerCase.endsWith("z")) s"${ts}Z" else ts)
             .flatMap(ts => Try(Instant.parse(ts)).toOption).map(_.toEpochMilli).map(Json.fromLong)
         ).map(t => t._1 -> t._2.getOrElse(Json.Null))
@@ -165,6 +171,26 @@ object AssetContractEventReader extends Logging {
     )
   }
 
+  def toRetryPageProducerRecords[F[_]](
+    record: ConsumerRecord[String, TilliJsonEvent],
+    offset: CommittableOffset[F],
+    inputTopic: InputTopic,
+  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
+    val Right(request) = record.value.data.as[AssetContractHolderRequest]
+    val newAssetContractHolderRequest = request.copy(attempt = request.attempt+1)
+    val newRequestTilliJsonEvent = record.value.copy(
+      header = record.value.header.copy(
+        eventTimestamp = Instant.now().toEpochMilli,
+        eventId = UUID.randomUUID(),
+      ),
+      data = newAssetContractHolderRequest.asJson
+    )
+    ProducerRecords(
+      List(ProducerRecord(inputTopic.name, record.key, newRequestTilliJsonEvent)),
+      offset
+    )
+  }
+
   def toErrorProducerRecords[F[_]](
     offset: CommittableOffset[F],
     record: Json,
@@ -172,26 +198,6 @@ object AssetContractEventReader extends Logging {
     trackingId: UUID,
     dataProvider: DataProvider,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-//    val key = root.address.string.getOption(record).orNull
-//    val sourced = root.sourced.long.getOption(record).getOrElse(Instant.now().toEpochMilli)
-//    val tilliJsonEvent = TilliJsonEvent(
-//      BlockchainClasses.Header(
-//        trackingId = trackingId,
-//        eventTimestamp = Instant.now().toEpochMilli,
-//        eventId = UUID.randomUUID(),
-//        origin = List(
-//          Origin(
-//            source = Some(dataProvider.source),
-//            provider = Some(dataProvider.provider),
-//            sourcedTimestamp = sourced,
-//          )
-//        ),
-//        dataType = Some(DataTypeAssetContract),
-//        version = DataTypeToVersion.get(DataTypeAssetContract)
-//      ),
-//      data = record,
-//    )
-//    val producerRecord = ProducerRecord(outputTopic.name, key, tilliJsonEvent)
     ProducerRecords(None, offset)
   }
 

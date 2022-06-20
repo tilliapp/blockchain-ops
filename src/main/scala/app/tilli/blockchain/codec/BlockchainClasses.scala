@@ -75,5 +75,6 @@ object BlockchainClasses {
     assetContractAddress: Option[String],
     openSeaCollectionSlug: Option[String],
     nextPage: Option[String],
+    attempt: Int = 1,
   )
 }
