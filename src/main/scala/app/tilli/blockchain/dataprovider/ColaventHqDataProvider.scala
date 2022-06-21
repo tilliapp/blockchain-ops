@@ -1,18 +1,19 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses
-import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, TransactionEventSource, TransactionEventsResult}
+import app.tilli.blockchain.codec.BlockchainClasses.{TransactionEventSource, TransactionEventsResult}
+import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, PaymentTokenDecimalsMap, chainPaymentTokenMap}
 import cats.effect.{Concurrent, Sync}
 import io.circe.Json
 import io.circe.optics.JsonPath.root
-import org.http4s.{Header, Headers}
 import org.http4s.client.Client
+import org.http4s.{Header, Headers}
 import org.typelevel.ci.CIString
 import upperbound.Limiter
 
 import java.time.Instant
 import java.util.UUID
+import scala.util.Try
 
 class ColaventHqDataProvider[F[_] : Sync](
   val httpClient: Client[F],
@@ -87,8 +88,88 @@ object ColaventHqDataProvider {
   }
 
   def getTransactionEventsFromResult(data: Json): List[Json] = {
-    ???
+    root.data.items.each.json.getAll(data).map { eventJson =>
+
+      val chain = Chain.ethereum
+      val chainValue = Some(Json.fromString(chain.toString))
+      val paymentTokenSymbol = chainPaymentTokenMap.get(chain)
+      val paymentTokenSymbolValue = paymentTokenSymbol.map(ps => Json.fromString(ps.toString))
+      val paymentTokenDecimals = paymentTokenSymbol.map(ps => Json.fromInt(PaymentTokenDecimalsMap(ps)))
+
+      val transactionHash = root.txHash.string.getOption(eventJson)
+      val transactionOffset = root.txOffset.int.getOption(eventJson).map(Json.fromInt)
+      val totalPrice = root.value.string.getOption(eventJson).map(Json.fromString)
+      val transactionTime = root.blockSignedAt.string.getOption(eventJson)
+        .map(ts => if (!ts.toLowerCase.endsWith("z")) s"${ts}Z" else ts)
+        .flatMap(ts => Try(Instant.parse(ts)).toOption).map(_.toEpochMilli).map(Json.fromLong)
+      val quantity = Some(Json.fromInt(1)) // TODO: Is this a fair assumption? We don't have any quantity counts in covalent
+
+      val logs = root.logEvents.each.json.getAll(eventJson)
+        .map { logEvent =>
+          val log = root.decoded.name.string.getOption(logEvent) match {
+            case Some("Approval") =>
+              val eventType = Option(Json.fromString(EventType.approval.toString))
+              Json.Null
+            case Some("Transfer") =>
+              val eventType = Option(Json.fromString(EventType.transfer.toString))
+              val logOffset = root.txOffset.int.getOption(logEvent).map(Json.fromInt)
+              val assetContractAddress = root.senderAddress.string.getOption(logEvent).map(Json.fromString)
+              val assetContractName = root.senderName.string.getOption(logEvent).map(Json.fromString)
+              val assetContractSymbol = root.senderContractTickerSymbol.string.getOption(logEvent).map(Json.fromString)
+              val tokenType = Option(Json.Null)
+              val tokenId = root
+                .rawLogTopics
+                .arr
+                .getOption(logEvent)
+                .flatMap(_.lastOption)
+                .flatMap(_.asString)
+                .flatMap(toIntegerFromHexString(_).toOption)
+                .map(Json.fromInt)
+
+              val decodedParams = root.decoded.params.arr.getOption(logEvent)
+              val from = decodedParams.flatMap(v => v.find(j => root.name.string.getOption(j).contains("from")).flatMap(j => root.value.string.getOption(j))).map(Json.fromString)
+              val to = decodedParams.flatMap(v => v.find(j => root.name.string.getOption(j).contains("to")).flatMap(j => root.value.string.getOption(j))).map(Json.fromString)
+
+              Json.fromFields(
+                Iterable(
+                  "eventType" -> eventType,
+                  "logOffset" -> logOffset,
+                  "fromAddress" -> from,
+                  "toAddress" -> to,
+                  "assetContractAddress" -> assetContractAddress,
+                  "assetContractName" -> assetContractName,
+                  "assetContractSymbol" -> assetContractSymbol,
+                  "tokenType" -> tokenType,
+                  "tokenId" -> tokenId,
+                ).map(t => t._1 -> t._2.getOrElse(Json.Null))
+              )
+            case Some("OrdersMatched") => Json.Null
+          }
+          log
+        }
+        .filterNot(_.isNull)
+
+      Json.fromFields(
+        Iterable(
+          "transactionHash" -> transactionHash.map(Json.fromString),
+          "transactionOffset" -> transactionOffset,
+          "chain" -> chainValue,
+          "paymentTokenSymbol" -> paymentTokenSymbolValue,
+          "paymentTokenDecimals" -> paymentTokenDecimals,
+          "totalPrice" -> totalPrice,
+          "quantity" -> quantity,
+          "transactionTime" -> transactionTime,
+          "logs" -> Some(Json.fromValues(logs)),
+        ).map(t => t._1 -> t._2.getOrElse(Json.Null))
+      )
+    }
   }
 
+  def toIntegerFromHexString(hexString: String): Either[Throwable, Int] = {
+    Try {
+      val hex = if (hexString.startsWith("0x")) hexString.substring(2) else hexString
+      Integer.parseInt(hex, 16)
+    }.toEither
+  }
 
 }

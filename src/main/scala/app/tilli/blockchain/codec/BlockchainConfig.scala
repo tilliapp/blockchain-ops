@@ -18,11 +18,28 @@ object BlockchainConfig {
   val VersionToDataType = DataTypeToVersion.map(t => t._2 -> t._1)
 
   object EventType extends Enumeration {
-    val transfer, sale, unknown = Value
+    val approval, transfer, sale, ordersMatched, unknown = Value
   }
 
   object ContractTypes extends Enumeration {
     val ERC20, ERC721, ERC777, ERC1155 = Value
   }
+
+  object Chain extends Enumeration {
+    val ethereum = Value
+  }
+
+  object PaymentToken extends Enumeration {
+    val eth = Value
+  }
+
+  val PaymentTokenDecimalsMap = Map(
+    PaymentToken.eth -> 18,
+  )
+
+
+  val chainPaymentTokenMap = Map(
+    Chain.ethereum -> PaymentToken.eth,
+  )
 
 }

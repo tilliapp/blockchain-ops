@@ -2,7 +2,7 @@ package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.{HttpClientErrorTrait, SimpleHttpClient}
 import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractEventSource, AssetContractEventsResult, AssetContractHolderRequest, AssetContractSource, DataProvider, TilliJsonEvent}
-import app.tilli.blockchain.codec.BlockchainConfig.EventType
+import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType}
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
 import io.circe.optics.JsonPath.root
@@ -122,6 +122,7 @@ object OpenSeaApi {
   def assetContractEventsFromResult(data: Json): List[Json] = {
     root.assetEvents.each.json.getAll(data).map { eventJson =>
 
+      val chain = Some(Json.fromString(Chain.ethereum.toString))
       val transactionHash = root.transaction.transactionHash.string.getOption(eventJson)
       val eventTypeRaw = root.eventType.string.getOption(eventJson)
       val assetContractAddress = root.asset.assetContract.address.string.getOption(eventJson).map(Json.fromString)
@@ -154,6 +155,7 @@ object OpenSeaApi {
         Iterable(
           "transactionHash" -> transactionHash.map(Json.fromString),
           "eventType" -> eventType,
+          "chain" -> chain,
           "fromAddress" -> from,
           "toAddress" -> to,
           "assetContractAddress" -> assetContractAddress,

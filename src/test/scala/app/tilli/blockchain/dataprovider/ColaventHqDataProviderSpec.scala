@@ -1,6 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.BaseSpec
+import app.tilli.blockchain.dataprovider.ColaventHqDataProviderSpec.expectedResult
 import app.tilli.serializer.KeyConverter
 
 class ColaventHqDataProviderSpec extends BaseSpec {
@@ -9,13 +10,30 @@ class ColaventHqDataProviderSpec extends BaseSpec {
 
     "get next page" in {
       val Right(json) = io.circe.parser.parse(ColaventHqDataProviderSpec.apiResult)
-      val results = ColaventHqDataProvider.getNextPageFromResult(json)
-      results mustBe Some(1)
+      val next = ColaventHqDataProvider.getNextPageFromResult(json)
+      next mustBe Some(1)
     }
 
     "decode result" in {
+      val Right(json) = io.circe.parser.parse(ColaventHqDataProviderSpec.apiResult)
+      val Right(expectedResultJson) = io.circe.parser.parse(expectedResult)
 
+      val result = ColaventHqDataProvider.getTransactionEventsFromResult(json)
+      println(result)
+      result mustBe List(expectedResultJson)
     }
+
+    "decode hex to int" in {
+      val hexString = "0x00000000000000000000000000000000000000000000000000000000000004e8"
+      val Right(result) = ColaventHqDataProvider.toIntegerFromHexString(hexString)
+      result mustBe 1256
+    }
+
+    "handle bad string" in {
+      ColaventHqDataProvider.toIntegerFromHexString("xyz") mustBe a[Left[Throwable, Int]]
+      ColaventHqDataProvider.toIntegerFromHexString(null) mustBe a[Left[Throwable, Int]]
+    }
+
 
   }
 
@@ -23,7 +41,7 @@ class ColaventHqDataProviderSpec extends BaseSpec {
 
 object ColaventHqDataProviderSpec {
 
-  val apiResult =KeyConverter.sc2cc(
+  val apiResult = KeyConverter.sc2cc(
     """
       |{
       |  "data": {
@@ -229,4 +247,29 @@ object ColaventHqDataProviderSpec {
       |  "error_code": null
       |}
       |""".stripMargin)
+
+  val expectedResult =
+    """{
+      |  "transactionHash" : "0x139de7f5924f71869e44812048ac514d4c55c64d395d18619404911f434a10ae",
+      |  "transactionOffset" : 39,
+      |  "chain" : "ethereum",
+      |  "paymentTokenSymbol" : "eth",
+      |  "paymentTokenDecimals" : 18,
+      |  "totalPrice" : "190000000000000000",
+      |  "quantity" : 1,
+      |  "transactionTime" : 1654789065000,
+      |  "logs" : [
+      |    {
+      |      "eventType" : "transfer",
+      |      "logOffset" : 39,
+      |      "fromAddress" : "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
+      |      "toAddress" : "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e",
+      |      "assetContractAddress" : "0x55256178afe74082c4f9afef7e40fec949c1b499",
+      |      "assetContractName" : "Philosophical Foxes V2",
+      |      "assetContractSymbol" : "FOX",
+      |      "tokenType" : null,
+      |      "tokenId" : 1256
+      |    }
+      |  ]
+      |}""".stripMargin
 }
