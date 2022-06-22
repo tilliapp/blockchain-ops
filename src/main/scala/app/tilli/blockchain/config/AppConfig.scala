@@ -14,7 +14,7 @@ trait RateLimitedResource {
   def maxQueued: Int
 }
 
-case class RateLimitOpenSea(
+case class RateLimitConfig(
   override val minIntervalMs: Int,
   override val maxConcurrent: Int,
   override val maxQueued: Int,
@@ -25,17 +25,27 @@ case class AppConfig(
   httpClientConfig: HttpClientConfig,
   kafkaConsumerConfiguration: KafkaConsumerConfiguration,
   kafkaProducerConfiguration: KafkaProducerConfiguration,
+
   inputTopicAssetContractRequest: InputTopic,
   outputTopicAssetContract: OutputTopic,
   outputTopicAssetContractEventRequest: OutputTopic,
+
   inputTopicAssetContractEventRequest: InputTopic,
   outputTopicAssetContractEvent: OutputTopic,
-  rateLimitOpenSea: RateLimitOpenSea,
+
+  inputTopicAddressContractEvent: InputTopic,
+  outputTopicAddressRequest: OutputTopic,
+
+  inputTopicTransactionEventRequest: InputTopic,
+  outputTopicTransactionEvent: OutputTopic,
+
+  rateLimitOpenSea: RateLimitConfig,
+  rateLimitCovalentHq: RateLimitConfig,
 )
 
 object AppConfig {
 
-  implicit val readerRateLimitOpenSea: ConfigReader[RateLimitOpenSea] = deriveReader[RateLimitOpenSea]
+  implicit val readerRateLimitOpenSea: ConfigReader[RateLimitConfig] = deriveReader[RateLimitConfig]
   implicit val readerHttpClientConfig: ConfigReader[HttpClientConfig] = deriveReader[HttpClientConfig]
   implicit val readerInputTopic: ConfigReader[InputTopic] = deriveReader[InputTopic]
   implicit val readerOutputTopic: ConfigReader[OutputTopic] = deriveReader[OutputTopic]

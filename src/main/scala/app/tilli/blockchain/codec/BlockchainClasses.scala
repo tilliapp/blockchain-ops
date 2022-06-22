@@ -63,7 +63,7 @@ object BlockchainClasses {
     nextPage: Option[String],
   )
 
-  trait AssetContractEventSource[F[_]] {
+  trait AssetContractEventSource[F[_]] extends DataProvider {
 
     def getAssetContractEvents(
       trackingId: UUID,
@@ -77,17 +77,16 @@ object BlockchainClasses {
 
   case class TransactionEventsResult(
     events: List[Json],
-    nextPage: Option[String],
+    nextPage: Option[Int],
   )
 
-
-  trait TransactionEventSource[F[_]] {
+  trait TransactionEventSource[F[_]] extends DataProvider {
 
     def getTransactionEvents(
       address: String,
       chainId: String,
       rateLimiter: Limiter[F],
-    ): Either[Throwable, TransactionEventsResult]
+    ): F[Either[HttpClientErrorTrait, TransactionEventsResult]]
 
   }
 
@@ -95,6 +94,13 @@ object BlockchainClasses {
     assetContractAddress: Option[String],
     openSeaCollectionSlug: Option[String],
     nextPage: Option[String],
+    attempt: Int = 1,
+  )
+
+  case class AddressRequest(
+    address: String,
+    chain: Option[String],
+    nextPage: Option[String] = None,
     attempt: Int = 1,
   )
 }

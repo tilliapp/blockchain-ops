@@ -7,12 +7,16 @@ object BlockchainConfig {
   val DataTypeAssetContract = "AssetContract"
   val DataTypeAssetContractEventRequest = "AssetContractEventRequest"
   val DataTypeAssetContractEvent = "AssetContractEvent"
+  val DataTypeAddressRequest = "AddressRequest"
+  val DataTypeTransactionEvent = "TransactionEvent"
 
   val Version_20220617 = "2022-06-17"
   val DataTypeToVersion = Map(
     DataTypeAssetContract -> Version_20220617,
-    DataTypeAssetContractEvent -> Version_20220617,
     DataTypeAssetContractEventRequest -> Version_20220617,
+    DataTypeAssetContractEvent -> Version_20220617,
+    DataTypeAddressRequest -> Version_20220617,
+    DataTypeTransactionEvent -> Version_20220617,
   )
 
   val VersionToDataType = DataTypeToVersion.map(t => t._2 -> t._1)
@@ -36,7 +40,6 @@ object BlockchainConfig {
   val PaymentTokenDecimalsMap = Map(
     PaymentToken.eth -> 18,
   )
-
 
   val chainPaymentTokenMap = Map(
     Chain.ethereum -> PaymentToken.eth,
