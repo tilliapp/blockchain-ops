@@ -58,9 +58,8 @@ object Service extends IOApp {
       httpServer &>
         AssetContractReader.assetContractRequestsStream(r) &>
         AssetContractEventReader.assetContractEventRequestStream(r) &>
-        AddressFilter.addressFilterStream(r)
-      //      &>
-      //        TransactionEventReader.transactionEventRequestStream(r)
+        AddressFilter.addressFilterStream(r) &>
+        TransactionEventReader.transactionEventRequestStream(r)
     }.as(ExitCode.Success)
   }
 

@@ -45,8 +45,8 @@ object AddressFilter extends Logging {
         kafkaConsumer
           .consumerStream
           .subscribeTo(inputTopic.name)
-          .records
-          .mapAsync(1) { committable =>
+          .partitionedRecords
+          .map{partition => partition.evalMap{committable =>
             import cats.implicits._
             val trackingId = committable.record.value.header.trackingId
             filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
@@ -57,7 +57,7 @@ object AddressFilter extends Logging {
                   log.error(s"Call failed: ${err.message} (code ${err.code}): ${err.headers}")
                   toErrorProducerRecords(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
               }
-          }
+          }}.parJoinUnbounded
           .through(KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
           .map(_.passthrough)
           .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))

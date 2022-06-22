@@ -149,7 +149,7 @@ object ColaventHqDataProvider {
                 ).map(t => t._1 -> t._2.getOrElse(Json.Null))
               )
             case Some(eventType) =>
-              println(s"Unknown eventType=$eventType")
+//              println(s"Unknown eventType=$eventType")
               Json.Null
 //            case Some("OrdersMatched") => Json.Null
 //            case Some("OwnershipTransferred") => Json.Null
@@ -186,7 +186,8 @@ object ColaventHqDataProvider {
         }
         .filterNot(_.isNull)
 
-      println(logs.size)
+      if(logs.size > 100)
+        println(s"$transactionHash: ${logs.size}")
       if (logs.isEmpty) List.empty
       else logs
     }
