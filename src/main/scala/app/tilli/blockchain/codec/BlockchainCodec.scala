@@ -20,6 +20,8 @@ object BlockchainCodec {
   implicit lazy val codecTilliJsonEvent: Codec[TilliJsonEvent] = deriveCodec
   implicit lazy val codecAssetContractHolderRequest: Codec[AssetContractHolderRequest] = deriveCodec
   implicit lazy val codecAddressRequest: Codec[AddressRequest] = deriveCodec
+  implicit lazy val codecTransactionEventsResult: Codec[TransactionEventsResult] = deriveCodec
+
 
   implicit lazy val decoderEventType = decodeEnumeration(EventType)
   implicit lazy val encoderEventType = encodeEnumeration(EventType)

@@ -85,6 +85,7 @@ object BlockchainClasses {
     def getTransactionEvents(
       address: String,
       chainId: String,
+      nextPage: Option[String],
       rateLimiter: Limiter[F],
     ): F[Either[HttpClientErrorTrait, TransactionEventsResult]]
 
