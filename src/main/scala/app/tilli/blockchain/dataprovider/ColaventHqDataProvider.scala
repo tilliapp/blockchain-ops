@@ -13,6 +13,7 @@ import org.http4s.{Header, Headers}
 import org.typelevel.ci.CIString
 import upperbound.Limiter
 
+import java.math.BigInteger
 import java.time.Instant
 import java.util.UUID
 import scala.util.Try
@@ -195,10 +196,10 @@ object ColaventHqDataProvider {
     }
   }
 
-  def toIntegerFromHexString(hexString: String): Either[Throwable, Int] = {
+  def toIntegerStringFromHexString(hexString: String): Either[Throwable, String] = {
     Try {
       val hex = if (hexString.startsWith("0x")) hexString.substring(2) else hexString
-      Integer.parseInt(hex, 16)
+      new BigInteger(hex, 16).toString(10)
     }.toEither
   }
 

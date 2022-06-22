@@ -25,15 +25,20 @@ class ColaventHqDataProviderSpec extends BaseSpec {
 
     "decode hex to int" in {
       val hexString = "0x00000000000000000000000000000000000000000000000000000000000004e8"
-      val Right(result) = ColaventHqDataProvider.toIntegerFromHexString(hexString)
+      val Right(result) = ColaventHqDataProvider.toIntegerStringFromHexString(hexString)
       result mustBe 1256
     }
 
     "handle bad string" in {
-      ColaventHqDataProvider.toIntegerFromHexString("xyz") mustBe a[Left[Throwable, Int]]
-      ColaventHqDataProvider.toIntegerFromHexString(null) mustBe a[Left[Throwable, Int]]
+      ColaventHqDataProvider.toIntegerStringFromHexString("xyz") mustBe a[Left[Throwable, Int]]
+      ColaventHqDataProvider.toIntegerStringFromHexString(null) mustBe a[Left[Throwable, Int]]
     }
 
+    "decode very large hex into int" in {
+      val hexString = "0x8c7afa16a87e8f7d7dba934325ffa4086aeb5228e09dbf0ac74660e8f61e5c0c"
+      val Right(result) = ColaventHqDataProvider.toIntegerStringFromHexString(hexString)
+      result mustBe "63541080191010310552469611647640848047372637692655634840450549577336141798412"
+    }
 
   }
 
