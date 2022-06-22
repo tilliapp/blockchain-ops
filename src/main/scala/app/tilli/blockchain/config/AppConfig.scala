@@ -41,6 +41,7 @@ case class AppConfig(
 
   rateLimitOpenSea: RateLimitConfig,
   rateLimitCovalentHq: RateLimitConfig,
+  rateLimitEtherscan: RateLimitConfig,
 )
 
 object AppConfig {

@@ -37,6 +37,10 @@ object BlockchainConfig {
     val eth = Value
   }
 
+  object AddressType extends Enumeration {
+    val external, contract = Value
+  }
+
   val PaymentTokenDecimalsMap = Map(
     PaymentToken.eth -> 18,
   )

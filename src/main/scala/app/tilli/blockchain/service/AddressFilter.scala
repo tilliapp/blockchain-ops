@@ -1,16 +1,21 @@
 package app.tilli.blockchain.service
 
+import app.tilli.api.utils.HttpClientErrorTrait
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
-import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAddressRequest, DataTypeToVersion}
-import app.tilli.collection.{LRUCache, LRUCacheMap}
+import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAddressRequest, DataTypeToVersion}
+import app.tilli.collection.{LRUCache, LRUCacheMap, MemCache}
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
 import app.tilli.utils.{Logging, OutputTopic}
+import cats.data.EitherT
 import cats.effect.{Async, Sync}
 import fs2.kafka._
+import io.chrisdavenport.mules.{Cache, TimeSpec}
+import io.circe.Json
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
+import upperbound.Limiter
 
 import java.time.Instant
 import java.util.UUID
@@ -18,7 +23,7 @@ import scala.concurrent.duration.DurationLong
 
 object AddressFilter extends Logging {
 
-  private val cache = new LRUCacheMap[String, String](maxEntries = 20000)
+  //  private val cache = new LRUCacheMap[String, AddressSimple](maxEntries = 20000)
 
   def addressFilterStream[F[_] : Async](
     r: Resources,
@@ -41,10 +46,17 @@ object AddressFilter extends Logging {
           .consumerStream
           .subscribeTo(inputTopic.name)
           .records
-          .mapAsync(8) { committable =>
+          .mapAsync(1) { committable =>
+            import cats.implicits._
             val trackingId = committable.record.value.header.trackingId
-            val addressRequests = filter(r.transactionEventSource, committable.record, cache)
-            Sync[F].pure(toProducerRecords(committable.record, committable.offset, addressRequests, outputTopic, trackingId))
+            filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
+              .map {
+                case Right(res) =>
+                  toProducerRecords(committable.record, committable.offset, res, outputTopic, trackingId)
+                case Left(err) =>
+                  log.error(s"Call failed: ${err.message} (code ${err.code}): ${err.headers}")
+                  toErrorProducerRecords(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
+              }
           }
           .through(KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
           .map(_.passthrough)
@@ -54,30 +66,64 @@ object AddressFilter extends Logging {
   }
 
   def filter[F[_] : Sync : Async](
-    source: TransactionEventSource[F],
     record: ConsumerRecord[String, TilliJsonEvent],
-    cache: LRUCache[String, String],
-  ): List[AddressRequest] = {
-    val toAddress = root.toAddress.string.getOption(record.value.data)
-    val fromAddress = root.fromAddress.string.getOption(record.value.data)
+    cache: Cache[F, String, AddressSimple],
+    assetContractTypeSource: AssetContractTypeSource[F],
+    rateLimiter: Limiter[F],
+  ): F[Either[HttpClientErrorTrait, List[AddressRequest]]] = {
     val blockChain = root.chain.string.getOption(record.value.data)
-    List(
-      checkAndInsertIntoCache(fromAddress, cache).map(a => AddressRequest(a, blockChain)),
-      checkAndInsertIntoCache(toAddress, cache).map(a => AddressRequest(a, blockChain))
+
+    val addresses = List(
+      root.toAddress.string.getOption(record.value.data),
+      root.fromAddress.string.getOption(record.value.data),
     ).flatten
+
+    import cats.implicits._
+    val temp = addresses
+      .map(a =>
+        EitherT(
+          checkAndInsertIntoCache(a, cache, assetContractTypeSource, rateLimiter)
+            .map(e => e.map(res => res.map(r => AddressRequest(r, blockChain))))
+        )
+      ).sequence
+      .map(r => r.flatten)
+      .value
+    temp
   }
 
-  def checkAndInsertIntoCache(
-    address: Option[String],
-    cache: LRUCache[String, String],
-  ): Option[String] =
-    address.flatMap { a =>
-      if (cache.getOption(a).nonEmpty) None
-      else {
-        cache.put(a, a)
-        address
+  def checkAndInsertIntoCache[F[_] : Sync](
+    a: String,
+    cache: Cache[F, String, AddressSimple],
+    assetContractTypeSource: AssetContractTypeSource[F],
+    rateLimiter: Limiter[F],
+  ): F[Either[HttpClientErrorTrait, Option[String]]] = {
+    import cats.implicits._
+    cache
+      .lookup(a)
+      .flatMap {
+        case None =>
+          assetContractTypeSource.getAssetContractType(a, rateLimiter)
+            .flatMap {
+              case Right(addressType) =>
+                val as = AddressSimple(
+                  address = a,
+                  isContract = addressType.map(_ == AddressType.contract),
+                )
+                cache.insert(a, as) *>
+                  Sync[F].pure(Right(
+                    if (as.isContract.contains(true)) None
+                    else Option(a)
+                  ))
+              case Left(err) =>
+                Sync[F].pure(Left(
+                  err
+                ).asInstanceOf[Either[HttpClientErrorTrait, Option[String]]])
+            }
+
+        case Some(_) =>
+          Sync[F].pure(Right(None).asInstanceOf[Either[HttpClientErrorTrait, Option[String]]])
       }
-    }
+  }
 
   def toProducerRecords[F[_]](
     record: ConsumerRecord[String, TilliJsonEvent],
@@ -87,23 +133,34 @@ object AddressFilter extends Logging {
     trackingId: UUID,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val sourcedTime = Instant.now.toEpochMilli
-    val requests = addressRequests.map { ar =>
-      val tilliJsonEvent = TilliJsonEvent(
-        BlockchainClasses.Header(
-          trackingId = trackingId,
-          eventTimestamp = sourcedTime,
-          eventId = UUID.randomUUID(),
-          origin = record.value.header.origin,
-          dataType = Some(DataTypeAddressRequest),
-          version = DataTypeToVersion.get(DataTypeAddressRequest)
-        ),
-        data = ar.asJson,
-      )
-      ProducerRecord(outputTopic.name, ar.address, tilliJsonEvent)
+    val requests = addressRequests.map {
+      ar =>
+        val tilliJsonEvent = TilliJsonEvent(
+          BlockchainClasses.Header(
+            trackingId = trackingId,
+            eventTimestamp = sourcedTime,
+            eventId = UUID.randomUUID(),
+            origin = record.value.header.origin,
+            dataType = Some(DataTypeAddressRequest),
+            version = DataTypeToVersion.get(DataTypeAddressRequest)
+          ),
+          data = ar.asJson,
+        )
+        ProducerRecord(outputTopic.name, ar.address, tilliJsonEvent)
     }
     ProducerRecords(
       requests,
       offset
     )
+  }
+
+  def toErrorProducerRecords[F[_]](
+    offset: CommittableOffset[F],
+    record: Json,
+    outputTopic: OutputTopic,
+    trackingId: UUID,
+    dataProvider: DataProvider,
+  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
+    ProducerRecords(None, offset)
   }
 }

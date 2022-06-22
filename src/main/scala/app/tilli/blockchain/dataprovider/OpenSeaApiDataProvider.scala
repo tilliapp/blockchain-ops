@@ -40,7 +40,6 @@ class OpenSeaApi[F[_] : Sync](
   override implicit val client: Client[F] = httpClient
 
   override def getAssetContract(
-    trackingId: UUID,
     assetContractAddress: String,
     rateLimiter: Limiter[F],
   ): F[Either[HttpClientErrorTrait, Json]] = {

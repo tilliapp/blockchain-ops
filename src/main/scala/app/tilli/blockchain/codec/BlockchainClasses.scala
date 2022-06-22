@@ -1,9 +1,11 @@
 package app.tilli.blockchain.codec
 
 import app.tilli.api.utils.HttpClientErrorTrait
+import app.tilli.blockchain.codec.BlockchainConfig.AddressType
 import io.circe.Json
 import upperbound.Limiter
 
+import java.time.Instant
 import java.util.UUID
 
 object BlockchainClasses {
@@ -51,10 +53,18 @@ object BlockchainClasses {
   trait AssetContractSource[F[_]] extends DataProvider {
 
     def getAssetContract(
-      trackingId: UUID,
       assetContractAddress: String,
       rateLimiter: Limiter[F],
     ): F[Either[HttpClientErrorTrait, Json]]
+
+  }
+
+  trait AssetContractTypeSource[F[_]] extends DataProvider {
+
+    def getAssetContractType(
+      assetContractAddress: String,
+      rateLimiter: Limiter[F],
+    ): F[Either[HttpClientErrorTrait, Option[AddressType.Value]]]
 
   }
 
@@ -103,5 +113,11 @@ object BlockchainClasses {
     chain: Option[String],
     nextPage: Option[String] = None,
     attempt: Int = 1,
+  )
+
+  case class AddressSimple(
+    address: String,
+    isContract: Option[Boolean],
+    created: Instant = Instant.now(),
   )
 }

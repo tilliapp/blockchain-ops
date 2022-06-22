@@ -17,6 +17,8 @@ object Dependencies {
     "org.typelevel" %% "cats-free" % catsVersion,
     "org.typelevel" %% "cats-effect" % catsEffectVersion,
     "co.fs2" %% "fs2-core" % fs2CoreVersion,
+
+    "io.chrisdavenport" %% "mules" % "0.5.0"
   )
 
   val utils = Seq(

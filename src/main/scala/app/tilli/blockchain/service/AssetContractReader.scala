@@ -51,7 +51,7 @@ object AssetContractReader extends Logging {
             record.map {
               case Right(json) => toProducerRecords(committable.offset, json, outputTopicAssetContract, outputTopicAssetContractRequest, trackingId, r.assetContractSource)
               case Left(errorTrait) =>
-                log.error(s"Call failed: ${errorTrait.message} (code ${errorTrait.message}): ${errorTrait.headers}")
+                log.error(s"Call failed: ${errorTrait.message} (code ${errorTrait.code}): ${errorTrait.headers}")
                 toErrorProducerRecords(committable.offset, Json.Null, outputTopicAssetContract, trackingId, r.assetContractSource)
             }
           }
@@ -70,10 +70,9 @@ object AssetContractReader extends Logging {
     import cats.implicits._
     Sync[F].delay(println(s"Processing record: $record")) *>
       source.getAssetContract(
-        record.key.getOrElse(UUID.randomUUID()),
         root.assetContractAddress.string.getOption(record.value).get,
         rateLimiter
-      ) //.flatTap(e => Sync[F].delay(println(e)))
+      )
   }
 
   def toProducerRecords[F[_]](
