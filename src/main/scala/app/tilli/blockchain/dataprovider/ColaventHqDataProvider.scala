@@ -86,7 +86,7 @@ object ColaventHqDataProvider {
   }
 
   def getTransactionEventsFromResult(data: Json): List[Json] = {
-    root.data.items.each.json.getAll(data).map { eventJson =>
+    root.data.items.each.json.getAll(data).flatMap { eventJson =>
       val chain = Chain.ethereum
       val chainValue = Some(Json.fromString(chain.toString))
       val paymentTokenSymbol = chainPaymentTokenMap.get(chain)
@@ -120,8 +120,8 @@ object ColaventHqDataProvider {
                 .getOption(logEvent)
                 .flatMap(_.lastOption)
                 .flatMap(_.asString)
-                .flatMap(toIntegerFromHexString(_).toOption)
-                .map(Json.fromInt)
+                .flatMap(toIntegerStringFromHexString(_).toOption)
+                .map(Json.fromString)
 
               val decodedParams = root.decoded.params.arr.getOption(logEvent)
               val from = decodedParams.flatMap(v => v.find(j => root.name.string.getOption(j).contains("from")).flatMap(j => root.value.string.getOption(j))).map(Json.fromString)
@@ -129,6 +129,14 @@ object ColaventHqDataProvider {
 
               Json.fromFields(
                 Iterable(
+                  "transactionHash" -> transactionHash.map(Json.fromString),
+                  "transactionOffset" -> transactionOffset,
+                  "chain" -> chainValue,
+                  "paymentTokenSymbol" -> paymentTokenSymbolValue,
+                  "paymentTokenDecimals" -> paymentTokenDecimals,
+                  "totalPrice" -> totalPrice,
+                  "quantity" -> quantity,
+                  "transactionTime" -> transactionTime,
                   "eventType" -> eventType,
                   "logOffset" -> logOffset,
                   "fromAddress" -> from,
@@ -179,20 +187,8 @@ object ColaventHqDataProvider {
         .filterNot(_.isNull)
 
       println(logs.size)
-      if (logs.isEmpty) Json.Null
-      else Json.fromFields(
-        Iterable(
-          "transactionHash" -> transactionHash.map(Json.fromString),
-          "transactionOffset" -> transactionOffset,
-          "chain" -> chainValue,
-          "paymentTokenSymbol" -> paymentTokenSymbolValue,
-          "paymentTokenDecimals" -> paymentTokenDecimals,
-          "totalPrice" -> totalPrice,
-          "quantity" -> quantity,
-          "transactionTime" -> transactionTime,
-          "logs" -> Some(Json.fromValues(logs)),
-        ).map(t => t._1 -> t._2.getOrElse(Json.Null))
-      )
+      if (logs.isEmpty) List.empty
+      else logs
     }
   }
 
