@@ -9,6 +9,7 @@ import upperbound.Limiter
 
 case class Resources(
   appConfig: AppConfig,
+  sslConfig: Option[Map[String, String]],
   httpClient: Client[IO],
   openSeaRateLimiter: Limiter[IO],
   covalentHqRateLimiter: Limiter[IO],

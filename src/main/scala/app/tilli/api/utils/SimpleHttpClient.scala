@@ -1,5 +1,6 @@
 package app.tilli.api.utils
 
+import app.tilli.blockchain.codec.BlockchainClasses.{HttpClientError, HttpClientErrorTrait}
 import app.tilli.logging.Logging
 import app.tilli.serializer.KeyConverter
 import cats.effect.Sync
@@ -12,43 +13,6 @@ import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-
-trait HttpClientErrorTrait extends Throwable {
-  def message: String
-
-  def detail: Option[String]
-
-  def code: Option[String]
-
-  def reason: Option[String]
-
-  def headers: Option[Headers]
-
-  def url: Option[String]
-}
-
-case class HttpClientError(
-  override val message: String,
-  override val detail: Option[String],
-  override val code: Option[String],
-  override val reason: Option[String],
-  override val headers: Option[Headers],
-  override val url: Option[String],
-) extends HttpClientErrorTrait
-
-object HttpClientError {
-
-  def apply(e: Throwable): HttpClientError =
-    new HttpClientError(
-      message = e.getMessage,
-      detail = None,
-      code = None,
-      reason = Option(e.getCause).filter(_ != null).map(_.getMessage),
-      headers = None,
-      url = None,
-    )
-
-}
 
 object SimpleHttpClient extends Logging {
 
@@ -81,7 +45,7 @@ object SimpleHttpClient extends Logging {
                 detail = Option(err.toString()).filter(s => s != null && s.nonEmpty),
                 code = Option(err.status.code.toString).filter(s => s != null && s.nonEmpty),
                 reason = Option(err.status.reason).filter(s => s != null && s.nonEmpty),
-                headers = Option(err.headers),
+                headers = Option(err.headers.toString),
                 url = Option(uri.renderString).filter(s => s != null && s.nonEmpty)
               )
             )

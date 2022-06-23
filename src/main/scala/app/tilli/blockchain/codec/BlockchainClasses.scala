@@ -1,6 +1,5 @@
 package app.tilli.blockchain.codec
 
-import app.tilli.api.utils.HttpClientErrorTrait
 import app.tilli.blockchain.codec.BlockchainConfig.AddressType
 import io.circe.Json
 import upperbound.Limiter
@@ -9,6 +8,43 @@ import java.time.Instant
 import java.util.UUID
 
 object BlockchainClasses {
+
+  trait HttpClientErrorTrait extends Throwable {
+    def message: String
+
+    def detail: Option[String]
+
+    def code: Option[String]
+
+    def reason: Option[String]
+
+    def headers: Option[String]
+
+    def url: Option[String]
+  }
+
+  case class HttpClientError(
+    override val message: String,
+    override val detail: Option[String],
+    override val code: Option[String],
+    override val reason: Option[String],
+    override val headers: Option[String],
+    override val url: Option[String],
+  ) extends HttpClientErrorTrait
+
+  object HttpClientError {
+
+    def apply(e: Throwable): HttpClientError =
+      new HttpClientError(
+        message = e.getMessage,
+        detail = None,
+        code = None,
+        reason = Option(e.getCause).filter(_ != null).map(_.getMessage),
+        headers = None,
+        url = None,
+      )
+
+  }
 
   trait TilliEvent[A] {
     def header: Header

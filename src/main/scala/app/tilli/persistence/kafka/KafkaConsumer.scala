@@ -2,4 +2,9 @@ package app.tilli.persistence.kafka
 
 class KafkaConsumer[KEY, VALUE](
   override val kafkaConsumerConfiguration: KafkaConsumerConfiguration,
-) extends KafkaConsumerTrait[KEY, VALUE]
+  sslConfig: Option[Map[String, String]] = None,
+) extends KafkaConsumerTrait[KEY, VALUE] {
+
+  override def withConsumerProperties: Map[String, String] =
+    super.withConsumerProperties ++ sslConfig.getOrElse(Map.empty)
+}

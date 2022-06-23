@@ -1,6 +1,5 @@
 package app.tilli.blockchain.service
 
-import app.tilli.api.utils.HttpClientErrorTrait
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
@@ -31,8 +30,8 @@ object AssetContractReader extends Logging {
     import cats.implicits._
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaProducerConfig = r.appConfig.kafkaProducerConfiguration
-    val kafkaConsumer = new KafkaConsumer[Option[UUID], Json](kafkaConsumerConfig)
-    val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig)
+    val kafkaConsumer = new KafkaConsumer[Option[UUID], Json](kafkaConsumerConfig, r.sslConfig)
+    val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig, r.sslConfig)
     val inputTopic = r.appConfig.inputTopicAssetContractRequest
     val outputTopicAssetContract = r.appConfig.outputTopicAssetContract
     val outputTopicAssetContractRequest = r.appConfig.outputTopicAssetContractEventRequest
@@ -55,7 +54,7 @@ object AssetContractReader extends Logging {
                 toErrorProducerRecords(committable.offset, Json.Null, outputTopicAssetContract, trackingId, r.assetContractSource)
             }
           }
-          .through(KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+          .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
           .map(_.passthrough)
           .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
       )

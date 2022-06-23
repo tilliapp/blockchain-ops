@@ -1,7 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
-import app.tilli.api.utils.{HttpClientError, HttpClientErrorTrait, SimpleHttpClient}
-import app.tilli.blockchain.codec.BlockchainClasses.{TransactionEventSource, TransactionEventsResult}
+import app.tilli.api.utils.SimpleHttpClient
+import app.tilli.blockchain.codec.BlockchainClasses.{HttpClientError, HttpClientErrorTrait, TransactionEventSource, TransactionEventsResult}
 import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, PaymentTokenDecimalsMap, chainPaymentTokenMap}
 import app.tilli.blockchain.dataprovider.ColaventHqDataProvider._
 import cats.data.EitherT
@@ -62,7 +62,7 @@ class ColaventHqDataProvider[F[_] : Sync](
             conversion = json => json,
           )
       ))
-      events <- EitherT(Sync[F].pure(Right(getTransactionEventsFromResult(result)).asInstanceOf[Either[HttpClientErrorTrait, List[Json]]]))
+      events <- EitherT(Sync[F].pure(Right(getTransactionEventsFromResult(result, Option(address))).asInstanceOf[Either[HttpClientErrorTrait, List[Json]]]))
       nextPage <- EitherT(Sync[F].pure(Right(getNextPageFromResult(result)).asInstanceOf[Either[HttpClientErrorTrait, Option[Int]]]))
     } yield TransactionEventsResult(
       events = events,
@@ -85,7 +85,10 @@ object ColaventHqDataProvider {
     }
   }
 
-  def getTransactionEventsFromResult(data: Json): List[Json] = {
+  def getTransactionEventsFromResult(
+    data: Json,
+    filterLogsAddress: Option[String] = None,
+  ): List[Json] = {
     root.data.items.each.json.getAll(data).flatMap { eventJson =>
       val chain = Chain.ethereum
       val chainValue = Some(Json.fromString(chain.toString))
@@ -104,89 +107,91 @@ object ColaventHqDataProvider {
       val logs = root.logEvents.each.json.getAll(eventJson)
         .map { logEvent =>
           val log = root.decoded.name.string.getOption(logEvent) match {
-            case Some("Approval") =>
-              val eventType = Option(Json.fromString(EventType.approval.toString))
-              Json.Null
             case Some("Transfer") =>
-              val eventType = Option(Json.fromString(EventType.transfer.toString))
-              val logOffset = root.logOffset.int.getOption(logEvent).map(Json.fromInt)
-              val assetContractAddress = root.senderAddress.string.getOption(logEvent).map(Json.fromString)
-              val assetContractName = root.senderName.string.getOption(logEvent).map(Json.fromString)
-              val assetContractSymbol = root.senderContractTickerSymbol.string.getOption(logEvent).map(Json.fromString)
-              val tokenType = Option(Json.Null)
-              val tokenId = root
-                .rawLogTopics
-                .arr
-                .getOption(logEvent)
-                .flatMap(_.lastOption)
-                .flatMap(_.asString)
-                .flatMap(toIntegerStringFromHexString(_).toOption)
-                .map(Json.fromString)
-
               val decodedParams = root.decoded.params.arr.getOption(logEvent)
               val from = decodedParams.flatMap(v => v.find(j => root.name.string.getOption(j).contains("from")).flatMap(j => root.value.string.getOption(j))).map(Json.fromString)
               val to = decodedParams.flatMap(v => v.find(j => root.name.string.getOption(j).contains("to")).flatMap(j => root.value.string.getOption(j))).map(Json.fromString)
 
-              Json.fromFields(
-                Iterable(
-                  "transactionHash" -> transactionHash.map(Json.fromString),
-                  "transactionOffset" -> transactionOffset,
-                  "chain" -> chainValue,
-                  "paymentTokenSymbol" -> paymentTokenSymbolValue,
-                  "paymentTokenDecimals" -> paymentTokenDecimals,
-                  "totalPrice" -> totalPrice,
-                  "quantity" -> quantity,
-                  "transactionTime" -> transactionTime,
-                  "eventType" -> eventType,
-                  "logOffset" -> logOffset,
-                  "fromAddress" -> from,
-                  "toAddress" -> to,
-                  "assetContractAddress" -> assetContractAddress,
-                  "assetContractName" -> assetContractName,
-                  "assetContractSymbol" -> assetContractSymbol,
-                  "tokenType" -> tokenType,
-                  "tokenId" -> tokenId,
-                ).map(t => t._1 -> t._2.getOrElse(Json.Null))
-              )
+              if (filterLogsAddress.isEmpty || from.flatMap(_.asString).contains(filterLogsAddress.get) || to.flatMap(_.asString).contains(filterLogsAddress.get)) {
+                val eventType = Option(Json.fromString(EventType.transfer.toString))
+                val logOffset = root.logOffset.int.getOption(logEvent).map(Json.fromInt)
+                val assetContractAddress = root.senderAddress.string.getOption(logEvent).map(Json.fromString)
+                val assetContractName = root.senderName.string.getOption(logEvent).map(Json.fromString)
+                val assetContractSymbol = root.senderContractTickerSymbol.string.getOption(logEvent).map(Json.fromString)
+                val tokenType = Option(Json.Null)
+                val tokenId = root
+                  .rawLogTopics
+                  .arr
+                  .getOption(logEvent)
+                  .flatMap(_.lastOption)
+                  .flatMap(_.asString)
+                  .flatMap(toIntegerStringFromHexString(_).toOption)
+                  .map(Json.fromString)
+
+                Json.fromFields(
+                  Iterable(
+                    "transactionHash" -> transactionHash.map(Json.fromString),
+                    "transactionOffset" -> transactionOffset,
+                    "chain" -> chainValue,
+                    "paymentTokenSymbol" -> paymentTokenSymbolValue,
+                    "paymentTokenDecimals" -> paymentTokenDecimals,
+                    "totalPrice" -> totalPrice,
+                    "quantity" -> quantity,
+                    "transactionTime" -> transactionTime,
+                    "eventType" -> eventType,
+                    "logOffset" -> logOffset,
+                    "fromAddress" -> from,
+                    "toAddress" -> to,
+                    "assetContractAddress" -> assetContractAddress,
+                    "assetContractName" -> assetContractName,
+                    "assetContractSymbol" -> assetContractSymbol,
+                    "tokenType" -> tokenType,
+                    "tokenId" -> tokenId,
+                  ).map(t => t._1 -> t._2.getOrElse(Json.Null))
+                )
+              } else {
+                Json.Null
+              }
             case Some(eventType) =>
-//              println(s"Unknown eventType=$eventType")
+//              //              println(s"Unknown eventType=$eventType")
               Json.Null
-//            case Some("OrdersMatched") => Json.Null
-//            case Some("OwnershipTransferred") => Json.Null
-//            case Some("TransferSingle") => Json.Null
-//            case Some("TokensDeposited") => Json.Null
-//            case Some("DepositMade") => Json.Null
-//            case Some("GrantAccepted") => Json.Null
-//            case Some("NameRegistered") => Json.Null
-//            case Some("NewOwner") => Json.Null
-//            case Some("AddrChanged") => Json.Null
-//            case Some("AddressChanged") => Json.Null
-//            case Some("NewResolver") => Json.Null
-//            case Some("Withdrawal") => Json.Null
-//            case Some("ApprovalForAll") => Json.Null
-//            case Some("Upgraded") => Json.Null
-//            case Some("Swap") => Json.Null
-//            case Some("Sync") => Json.Null
-//            case Some("Deposit") => Json.Null
-//            case Some("Loose") => Json.Null
-//            case Some("OrderCancelled") => Json.Null
-//            case Some("Deposited") => Json.Null
-//            case Some("StateSynced") => Json.Null
-//            case Some("Burn") => Json.Null
-//            case Some("UnstakeCompleted") => Json.Null
-//            case Some("JoinQueue") => Json.Null
-//            case Some("DelegateVotesChanged") => Json.Null
-//            case Some("DelegateChanged") => Json.Null
-//            case Some("AuctionBid") => Json.Null
-//            case Some("Redeemed") => Json.Null
-//            case Some("Redeemed") => Json.Null
+            //            case Some("Approval") =>
+            //            case Some("OrdersMatched") => Json.Null
+            //            case Some("OwnershipTransferred") => Json.Null
+            //            case Some("TransferSingle") => Json.Null
+            //            case Some("TokensDeposited") => Json.Null
+            //            case Some("DepositMade") => Json.Null
+            //            case Some("GrantAccepted") => Json.Null
+            //            case Some("NameRegistered") => Json.Null
+            //            case Some("NewOwner") => Json.Null
+            //            case Some("AddrChanged") => Json.Null
+            //            case Some("AddressChanged") => Json.Null
+            //            case Some("NewResolver") => Json.Null
+            //            case Some("Withdrawal") => Json.Null
+            //            case Some("ApprovalForAll") => Json.Null
+            //            case Some("Upgraded") => Json.Null
+            //            case Some("Swap") => Json.Null
+            //            case Some("Sync") => Json.Null
+            //            case Some("Deposit") => Json.Null
+            //            case Some("Loose") => Json.Null
+            //            case Some("OrderCancelled") => Json.Null
+            //            case Some("Deposited") => Json.Null
+            //            case Some("StateSynced") => Json.Null
+            //            case Some("Burn") => Json.Null
+            //            case Some("UnstakeCompleted") => Json.Null
+            //            case Some("JoinQueue") => Json.Null
+            //            case Some("DelegateVotesChanged") => Json.Null
+            //            case Some("DelegateChanged") => Json.Null
+            //            case Some("AuctionBid") => Json.Null
+            //            case Some("Redeemed") => Json.Null
+            //            case Some("Redeemed") => Json.Null
             case None => Json.Null
           }
           log
         }
         .filterNot(_.isNull)
 
-      if(logs.size > 100)
+      if (logs.size > 100)
         println(s"$transactionHash: ${logs.size}")
       if (logs.isEmpty) List.empty
       else logs

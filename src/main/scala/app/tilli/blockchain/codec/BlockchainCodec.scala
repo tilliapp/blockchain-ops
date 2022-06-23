@@ -10,6 +10,7 @@ import io.circe.Decoder.decodeEnumeration
 import io.circe.Encoder.encodeEnumeration
 import io.circe.generic.semiauto.deriveCodec
 import io.circe.{Codec, Json}
+import org.typelevel.ci.CIString
 
 object BlockchainCodec {
 
@@ -22,6 +23,11 @@ object BlockchainCodec {
   implicit lazy val codecAddressRequest: Codec[AddressRequest] = deriveCodec
   implicit lazy val codecTransactionEventsResult: Codec[TransactionEventsResult] = deriveCodec
 
+//  import org.http4s.{Header, Headers}
+//  implicit lazy val codecHttp4sCIString: Codec[CIString] = deriveCodec
+//  implicit lazy val codecHttp4sHeadersRaw: Codec[Header.Raw] = deriveCodec
+//  implicit lazy val codecHttp4sHeaders: Codec[Headers] = deriveCodec
+  implicit lazy val codecHttpClientError: Codec[HttpClientError] = deriveCodec
 
   implicit lazy val decoderEventType = decodeEnumeration(EventType)
   implicit lazy val encoderEventType = encodeEnumeration(EventType)
@@ -32,6 +38,5 @@ object BlockchainCodec {
 
   implicit val serializerJson: Serializer[IO, Json] = Fs2KafkaCodec.serializer
   implicit val serializerTilliJsonEvent: Serializer[IO, TilliJsonEvent] = Fs2KafkaCodec.serializer
-
 
 }

@@ -1,17 +1,15 @@
 package app.tilli.blockchain.service
 
-import app.tilli.api.utils.HttpClientErrorTrait
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAddressRequest, DataTypeToVersion}
-import app.tilli.collection.{LRUCache, LRUCacheMap, MemCache}
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
 import app.tilli.utils.{Logging, OutputTopic}
 import cats.data.EitherT
 import cats.effect.{Async, Sync}
 import fs2.kafka._
-import io.chrisdavenport.mules.{Cache, TimeSpec}
+import io.chrisdavenport.mules.Cache
 import io.circe.Json
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
@@ -34,8 +32,8 @@ object AddressFilter extends Logging {
   ): F[Unit] = {
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaProducerConfig = r.appConfig.kafkaProducerConfiguration
-    val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig)
-    val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig)
+    val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
+    val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig, r.sslConfig)
     val inputTopic = r.appConfig.inputTopicAddressContractEvent
     val outputTopic = r.appConfig.outputTopicAddressRequest
 
@@ -46,19 +44,21 @@ object AddressFilter extends Logging {
           .consumerStream
           .subscribeTo(inputTopic.name)
           .partitionedRecords
-          .map{partition => partition.evalMap{committable =>
-            import cats.implicits._
-            val trackingId = committable.record.value.header.trackingId
-            filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
-              .map {
-                case Right(res) =>
-                  toProducerRecords(committable.record, committable.offset, res, outputTopic, trackingId)
-                case Left(err) =>
-                  log.error(s"Call failed: ${err.message} (code ${err.code}): ${err.headers}")
-                  toErrorProducerRecords(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
-              }
-          }}.parJoinUnbounded
-          .through(KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+          .map { partition =>
+            partition.evalMap { committable =>
+              import cats.implicits._
+              val trackingId = committable.record.value.header.trackingId
+              filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
+                .map {
+                  case Right(res) =>
+                    toProducerRecords(committable.record, committable.offset, res, outputTopic, trackingId)
+                  case Left(err) =>
+                    log.error(s"Call failed: ${err.message} (code ${err.code}): ${err.headers.map(_.toString)}")
+                    toErrorProducerRecords(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
+                }
+            }
+          }.parJoinUnbounded
+          .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
           .map(_.passthrough)
           .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
       )
@@ -80,6 +80,7 @@ object AddressFilter extends Logging {
 
     import cats.implicits._
     val temp = addresses
+      .filterNot(_ == "0x0000000000000000000000000000000000000000") // Remove null address
       .map(a =>
         EitherT(
           checkAndInsertIntoCache(a, cache, assetContractTypeSource, rateLimiter)
