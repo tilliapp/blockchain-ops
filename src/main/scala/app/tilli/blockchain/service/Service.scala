@@ -51,7 +51,7 @@ object Service extends IOApp {
       )
       covalentHqApi <- Resource.eval(IO(new ColaventHqDataProvider[IO](httpClient, concurrent)))
       etherscanApi <- Resource.eval(IO(new EtherscanDataProvider[IO](httpClient, concurrent)))
-      cache <- MemCache.resource[IO, String, AddressSimple](duration = 10.minutes)
+      cache <- MemCache.resource[IO, String, AddressSimple](duration = 12.hours)
     } yield Resources(
       appConfig = appConfig,
       sslConfig = Some(sslConfig),

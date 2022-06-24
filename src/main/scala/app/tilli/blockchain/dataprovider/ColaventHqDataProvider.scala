@@ -56,7 +56,7 @@ class ColaventHqDataProvider[F[_] : Sync](
             path = path,
             queryParams = Map(
               "key" -> apiKey,
-              "page-size" -> "10",
+              "page-size" -> "30",
             ) ++ page.map(p => Map[String, String]("page-number" -> s"$p")).getOrElse(Map.empty[String, String]),
             headers = headers,
             conversion = json => json,
