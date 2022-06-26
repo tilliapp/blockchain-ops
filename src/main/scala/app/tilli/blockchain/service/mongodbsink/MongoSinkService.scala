@@ -27,7 +27,7 @@ object MongoSinkService extends IOApp {
     )
 
     val mongoDbName = "tilli"
-    val collectionName = "transaction"
+    val collectionName = "transaction_timeseries"
 
     import mongo4cats.circe._
     val resources = for {
