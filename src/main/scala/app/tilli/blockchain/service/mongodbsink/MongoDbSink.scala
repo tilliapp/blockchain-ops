@@ -10,6 +10,8 @@ import fs2.kafka._
 import io.circe.Json
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
+import mongo4cats.circe.MongoJsonCodecs
+import mongo4cats.collection.{BulkWriteOptions, UpdateOptions, WriteCommand}
 
 import java.time.Instant
 import java.util.UUID
@@ -47,7 +49,8 @@ object MongoDbSink extends Logging {
       .subscribeTo(inputTopic.name)
       .records
       .chunks
-      .evalMapChunk { chunk =>
+      .mapAsync(8) {chunk =>
+//      .evalMapChunk { chunk =>
         val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
         val processed = write(resources, transform(chunk))
           .flatMap {
@@ -72,7 +75,7 @@ object MongoDbSink extends Logging {
       .toList
       .map(_.record.value.data)
       .map { json =>
-        val Right(record) = json.as[TransactionRecordData]
+        val Right(record) = json.as[TransactionRecordData](codecTransactionRecordData)
         TransactionRecord(
           transactionTime = record.transactionTime,
           key = getKey(json),
@@ -94,8 +97,21 @@ object MongoDbSink extends Logging {
     data: Seq[TransactionRecord],
   ): F[Either[Throwable, Boolean]] = {
     import cats.implicits._
+    import mongo4cats.collection.operations._
+
+    val commands = data.map(t =>
+      WriteCommand.UpdateOne(
+        filter = Filter.eq("data.key", t.key.get),
+        update = Update.set("data", t),
+        options = UpdateOptions().upsert(true),
+      )
+    )
     resources.transactionCollection
-      .insertMany(data)
+      .bulkWrite(commands,
+        BulkWriteOptions()
+          .ordered(false)
+          .bypassDocumentValidation(true)
+      )
       .attempt
       .map(_.map(_.wasAcknowledged()))
   }

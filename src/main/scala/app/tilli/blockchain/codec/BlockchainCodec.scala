@@ -15,7 +15,7 @@ import mongo4cats.circe.MongoJsonCodecs
 import java.time.Instant
 import scala.util.Try
 
-object BlockchainCodec extends MongoJsonCodecs {
+object BlockchainCodec extends MongoJsonCodecs{
 
   // Circe
   //  implicit lazy val codecJson: Codec[Json] = deriveCodec
