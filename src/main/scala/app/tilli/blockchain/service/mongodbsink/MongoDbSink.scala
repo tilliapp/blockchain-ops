@@ -43,41 +43,24 @@ object MongoDbSink extends Logging {
     kafkaConsumer
       .consumerStream
       .subscribeTo(inputTopic.name)
-      .partitionedRecords
-      .flatMap { partitionedStream =>
-        partitionedStream
-          .chunks
-          .evalMapChunk { chunk: Chunk[CommittableConsumerRecord[F, String, TilliJsonEvent]] =>
-            val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
-            val processed = write(resources, transform(chunk))
-              .flatMap {
-                case Right(_) =>
-                  Sync[F].pure()
-                case Left(throwable) =>
-                  val error = HttpClientError(throwable)
-                  log.error(s"Write failed: ${error.message} (code ${error.code}): ${error.headers}")
-                  Sync[F].raiseError(error).asInstanceOf[F[Unit]]
-              }
-
-            Sync[F].delay(log.info(s"Writing batch of size ${chunk.size}: ${batch.offsets.lastOption.map(t => s"${t._1}:${t._2.offset()}").getOrElse("No offset")}")) *>
-              processed *>
-              batch.commit
+      .records
+      .chunks
+      .evalMapChunk { chunk =>
+        val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
+        val processed = write(resources, transform(chunk))
+          .flatMap {
+            case Right(_) =>
+              Sync[F].pure()
+            case Left(throwable) =>
+              val error = HttpClientError(throwable)
+              log.error(s"Write failed: ${error.message} (code ${error.code}): ${error.headers}")
+              Sync[F].raiseError(error).asInstanceOf[F[Unit]]
           }
-      }
 
-    //            val processed = write(resources, chunk).asInstanceOf[F[Either[Throwable, Boolean]]]
-    //              .map {
-    //                case Right(_) =>
-    //                //                  ProducerRecords(None, chunk)
-    //                case Left(throwable) =>
-    //                  val error = HttpClientError(throwable)
-    //                  log.error(s"Call failed: ${error.message} (code ${error.code}): ${error.headers}")
-    //                //                  toErrorProducerRecords(committable.record, committable.offset, error.asJson, outputTopicFailure)
-    //                //                  ProducerRecords(None, chunk)
-    //              } //.map(_.passthrough)
-    //            processed >> batch.commit
-    //          }
-    //      .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
+        Sync[F].delay(log.info(s"Writing batch of size ${chunk.size}: ${batch.offsets.lastOption.map(t => s"${t._1}:${t._2.offset()}").getOrElse("No offset")}")) *>
+          processed *>
+          batch.commit
+      }
   }
 
   def transform[F[_]](
