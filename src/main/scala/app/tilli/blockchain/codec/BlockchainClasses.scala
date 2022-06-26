@@ -156,4 +156,32 @@ object BlockchainClasses {
     isContract: Option[Boolean],
     created: Instant = Instant.now(),
   )
+
+
+  case class TransactionRecordData(
+    transactionHash: Option[String],
+    transactionOffset: Option[Long],
+    chain: Option[String],
+    paymentTokenSymbol: Option[String],
+    paymentTokenDecimals: Option[Int],
+    totalPrice: Option[String],
+    quantity: Option[Long],
+    transactionTime: Option[Instant],
+    eventType: Option[String],
+    logOffset: Option[Long],
+    fromAddress: Option[String],
+    toAddress: Option[String],
+    assetContractAddress: Option[String],
+    assetContractName: Option[String],
+    assetContractSymbol: Option[String],
+    tokenType: Option[String],
+    tokenId: Option[String],
+    createdAt: Option[Instant] = Some(Instant.now),
+  )
+
+  case class TransactionRecord(
+    transactionTime: Option[Instant],
+    key: Option[String],
+    data: TransactionRecordData,
+  )
 }

@@ -9,13 +9,16 @@ import fs2.kafka.{Deserializer, Serializer}
 import io.circe.Decoder.decodeEnumeration
 import io.circe.Encoder.encodeEnumeration
 import io.circe.generic.semiauto.deriveCodec
-import io.circe.{Codec, Json}
-import org.typelevel.ci.CIString
+import io.circe.{Codec, Decoder, Json}
+import mongo4cats.circe.MongoJsonCodecs
 
-object BlockchainCodec {
+import java.time.Instant
+import scala.util.Try
+
+object BlockchainCodec extends MongoJsonCodecs {
 
   // Circe
-//  implicit lazy val codecJson: Codec[Json] = deriveCodec
+  //  implicit lazy val codecJson: Codec[Json] = deriveCodec
   implicit lazy val codecHeader: Codec[Header] = deriveCodec
   implicit lazy val codecOrigin: Codec[Origin] = deriveCodec
   implicit lazy val codecTilliJsonEvent: Codec[TilliJsonEvent] = deriveCodec
@@ -23,10 +26,13 @@ object BlockchainCodec {
   implicit lazy val codecAddressRequest: Codec[AddressRequest] = deriveCodec
   implicit lazy val codecTransactionEventsResult: Codec[TransactionEventsResult] = deriveCodec
 
-//  import org.http4s.{Header, Headers}
-//  implicit lazy val codecHttp4sCIString: Codec[CIString] = deriveCodec
-//  implicit lazy val codecHttp4sHeadersRaw: Codec[Header.Raw] = deriveCodec
-//  implicit lazy val codecHttp4sHeaders: Codec[Headers] = deriveCodec
+  implicit val decodeInstantFromLong: Decoder[Instant] = Decoder.decodeLong.emapTry { str =>
+    Try(Instant.ofEpochMilli(str))
+  }
+
+  implicit lazy val codecTransactionRecordData: Codec[TransactionRecordData] = deriveCodec
+  implicit lazy val codecTransactionRecord: Codec[TransactionRecord] = deriveCodec
+
   implicit lazy val codecHttpClientError: Codec[HttpClientError] = deriveCodec
 
   implicit lazy val decoderEventType = decodeEnumeration(EventType)

@@ -1,6 +1,7 @@
 package app.tilli.blockchain.service.mongodbsink
 
 import app.tilli.blockchain.codec.BlockchainClasses._
+import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaConsumerConfiguration}
 import app.tilli.utils.{InputTopic, Logging, OutputTopic}
 import cats.effect.{Async, Sync}
@@ -8,6 +9,7 @@ import fs2.Chunk
 import fs2.kafka._
 import io.circe.Json
 import io.circe.optics.JsonPath.root
+import io.circe.syntax.EncoderOps
 
 import java.time.Instant
 import java.util.UUID
@@ -65,24 +67,34 @@ object MongoDbSink extends Logging {
 
   def transform[F[_]](
     chunkRecords: Chunk[CommittableConsumerRecord[F, String, TilliJsonEvent]],
-  ): List[Json] = {
+  ): List[TransactionRecord] = {
     chunkRecords
       .toList
       .map(_.record.value.data)
-      .map(json =>
-        Json.fromFields(
-          Iterable(
-            "transactionTime" -> Json.fromString(root.transactionTime.long.getOption(json).map(_.toString).get),
-            "data" -> json,
-          )
+      .map { json =>
+        val Right(record) = json.as[TransactionRecordData]
+        val serdes = record.asJson.noSpaces
+        val rec1 = TransactionRecord(
+          transactionTime = record.transactionTime,
+          key = getKey(json),
+          data = record,
         )
+        val sed = rec1.asJson.noSpaces
+        rec1
+      }
+  }
 
-      )
+  def getKey(json: Json): Option[String] = {
+    for {
+      transactionHash <- root.transactionHash.string.getOption(json)
+      transactionOffset <- root.transactionOffset.long.getOption(json)
+      logOffset <- root.logOffset.long.getOption(json)
+    } yield s"$transactionHash-$transactionOffset-$logOffset"
   }
 
   def write[F[_] : Sync : Async](
     resources: Resources[F],
-    data: Seq[Json],
+    data: Seq[TransactionRecord],
   ): F[Either[Throwable, Boolean]] = {
     import cats.implicits._
     resources.transactionCollection

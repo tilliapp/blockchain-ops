@@ -1,7 +1,7 @@
 package app.tilli.blockchain.service.mongodbsink
 
+import app.tilli.blockchain.codec.BlockchainClasses.TransactionRecord
 import app.tilli.blockchain.config.AppConfig
-import io.circe.Json
 import mongo4cats.client.MongoClient
 import mongo4cats.collection.MongoCollection
 import mongo4cats.database.MongoDatabase
@@ -13,5 +13,5 @@ case class Resources[F[_]](
   httpClient: Client[F],
   mongoClient: MongoClient[F],
   mongoDatabase: MongoDatabase[F],
-  transactionCollection: MongoCollection[F, Json],
+  transactionCollection: MongoCollection[F, TransactionRecord],
 )
