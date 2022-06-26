@@ -18,7 +18,6 @@ import scala.util.Try
 object BlockchainCodec extends MongoJsonCodecs{
 
   // Circe
-  //  implicit lazy val codecJson: Codec[Json] = deriveCodec
   implicit lazy val codecHeader: Codec[Header] = deriveCodec
   implicit lazy val codecOrigin: Codec[Origin] = deriveCodec
   implicit lazy val codecTilliJsonEvent: Codec[TilliJsonEvent] = deriveCodec
