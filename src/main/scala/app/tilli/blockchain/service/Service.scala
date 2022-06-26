@@ -77,7 +77,7 @@ object Service extends IOApp {
 
   def httpServer[F[_] : Async](implicit r: Resources): F[Unit] =
     BlazeServer
-      .serverWithHealthCheck()
+      .serverWithHealthCheck(httpPort = 8081)
       .serve
       .compile
       .drain

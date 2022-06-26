@@ -46,8 +46,10 @@ object Dependencies {
     "com.softwaremill.sttp.tapir" %% "tapir-http4s-server" % tapirVersion,
   )
 
-  val streamingDependencies = Seq(
+  val dataDependencies = Seq(
     "com.github.fd4s" %% "fs2-kafka" % fs2KafkaVersion,
+    "io.github.kirill5k" %% "mongo4cats-core" % "0.4.8",
+    "io.github.kirill5k" %% "mongo4cats-circe" % "0.4.8",
   )
 
   val serdesDependencies = Seq(

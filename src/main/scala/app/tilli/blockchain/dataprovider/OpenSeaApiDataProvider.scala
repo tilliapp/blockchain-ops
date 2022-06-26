@@ -1,14 +1,14 @@
 package app.tilli.blockchain.dataprovider
 
-import app.tilli.api.utils.{HttpClientErrorTrait, SimpleHttpClient}
-import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractEventSource, AssetContractEventsResult, AssetContractHolderRequest, AssetContractSource, DataProvider, TilliJsonEvent}
+import app.tilli.api.utils.SimpleHttpClient
+import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractEventSource, AssetContractEventsResult, AssetContractSource, HttpClientErrorTrait, TilliJsonEvent}
 import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType}
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
+import io.circe.Json
 import io.circe.optics.JsonPath.root
-import io.circe.{Decoder, Json}
 import org.http4s.client.Client
-import org.http4s.{EntityDecoder, Header, Headers}
+import org.http4s.{Header, Headers}
 import org.typelevel.ci.CIString
 import upperbound.Limiter
 
