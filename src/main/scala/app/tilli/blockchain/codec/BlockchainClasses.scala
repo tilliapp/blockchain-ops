@@ -157,7 +157,6 @@ object BlockchainClasses {
     created: Instant = Instant.now(),
   )
 
-
   case class TransactionRecordData(
     transactionHash: Option[String],
     transactionOffset: Option[Long],

@@ -73,14 +73,11 @@ object MongoDbSink extends Logging {
       .map(_.record.value.data)
       .map { json =>
         val Right(record) = json.as[TransactionRecordData]
-        val serdes = record.asJson.noSpaces
-        val rec1 = TransactionRecord(
+        TransactionRecord(
           transactionTime = record.transactionTime,
           key = getKey(json),
           data = record,
         )
-        val sed = rec1.asJson.noSpaces
-        rec1
       }
   }
 
