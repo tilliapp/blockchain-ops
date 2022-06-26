@@ -47,7 +47,7 @@ object MongoDbSink extends Logging {
       .subscribeTo(inputTopic.name)
       .records
       .chunks
-      .evalMapChunk { chunk =>
+      .mapAsync(8) { chunk =>
         val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
         val processed = write(resources, transform(chunk))
           .flatMap {
