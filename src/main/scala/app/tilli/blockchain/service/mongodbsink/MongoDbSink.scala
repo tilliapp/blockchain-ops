@@ -8,6 +8,7 @@ import fs2.Chunk
 import fs2.kafka._
 import io.circe.Json
 import io.circe.optics.JsonPath.root
+import mongo4cats.collection.{BulkWriteOptions, UpdateOptions, WriteCommand}
 
 import java.time.Instant
 import java.util.UUID
@@ -47,7 +48,7 @@ object MongoDbSink extends Logging {
       .chunks
       .evalMapChunk { chunk =>
         val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
-        val processed = write(resources, transform(chunk))
+        val processed = writeTransaction(resources, toTransaction(chunk))
           .flatMap {
             case Right(_) =>
               Sync[F].pure()
@@ -63,7 +64,7 @@ object MongoDbSink extends Logging {
       }
   }
 
-  def transform[F[_]](
+  def transformTimeSeries[F[_]](
     chunkRecords: Chunk[CommittableConsumerRecord[F, String, TilliJsonEvent]],
   ): List[Json] = {
     chunkRecords
@@ -76,17 +77,70 @@ object MongoDbSink extends Logging {
             "data" -> json,
           )
         )
-
       )
   }
 
-  def write[F[_] : Sync : Async](
+  def toTransaction[F[_]](
+    chunkRecords: Chunk[CommittableConsumerRecord[F, String, TilliJsonEvent]],
+  ): List[(String, Json)] = {
+    chunkRecords
+      .toList
+      .map(_.record.value.data)
+      .map { json =>
+        val key = getKey(json).get
+        (
+          key,
+          Json.fromFields(
+            Iterable(
+              "key" -> Json.fromString(key),
+              "transaction" -> json
+            )
+          )
+        )
+      }
+  }
+
+  def getKey(json: Json): Option[String] = {
+    for {
+      transactionHash <- root.transactionHash.string.getOption(json)
+      transactionOffset <- root.transactionOffset.long.getOption(json)
+      logOffset <- root.logOffset.long.getOption(json)
+    } yield s"$transactionHash-$transactionOffset-$logOffset"
+  }
+
+  def writeTimeSeries[F[_] : Sync : Async](
     resources: Resources[F],
     data: Seq[Json],
   ): F[Either[Throwable, Boolean]] = {
     import cats.implicits._
     resources.transactionCollection
       .insertMany(data)
+      .attempt
+      .map(_.map(_.wasAcknowledged()))
+  }
+
+  def writeTransaction[F[_] : Sync : Async](
+    resources: Resources[F],
+    data: Seq[(String, Json)],
+  ): F[Either[Throwable, Boolean]] = {
+    import cats.implicits._
+    import mongo4cats.collection.operations._
+
+    val commands = data.map(t =>
+      WriteCommand.UpdateOne(
+        filter = Filter.regex("data.key", t._1),
+        update = Update
+          .set("data", t._2),
+        options = UpdateOptions()
+//          .upsert(true),
+      )
+    )
+    resources.transactionCollection
+      .bulkWrite(commands,
+        BulkWriteOptions()
+//          .ordered(false)
+//          .bypassDocumentValidation(true)
+      )
       .attempt
       .map(_.map(_.wasAcknowledged()))
   }
