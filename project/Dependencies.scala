@@ -56,4 +56,8 @@ object Dependencies {
     "io.circe" %% "circe-parser" % circeVersion,
     "io.circe" %% "circe-optics" % circeVersion,
   )
+
+  val cloudDependencies = Seq(
+    "com.google.cloud" % "google-cloud-storage" % "2.8.1"
+  )
 }
