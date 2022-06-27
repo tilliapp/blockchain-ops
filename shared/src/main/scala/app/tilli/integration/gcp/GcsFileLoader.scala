@@ -14,7 +14,7 @@ object GcsFileLoader extends Logging {
     .build()
     .getService
 
-  def load(
+  def loadFromGcsToLocalFile(
     gcsPath: String,
     fileOutputPath: Option[String] = None,
   ): Either[Throwable, File] = {
