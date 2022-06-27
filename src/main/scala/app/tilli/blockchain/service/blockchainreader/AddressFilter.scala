@@ -1,4 +1,4 @@
-package app.tilli.blockchain.service
+package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._

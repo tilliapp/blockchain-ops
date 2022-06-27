@@ -1,17 +1,18 @@
-package app.tilli.blockchain.service
+package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.BlazeServer
 import app.tilli.api.utils.BlazeHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses.AddressSimple
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.config.AppConfig.readerAppConfig
-import app.tilli.blockchain.dataprovider._
+import app.tilli.blockchain.dataprovider.{ColaventHqDataProvider, EtherscanDataProvider, OpenSeaApi}
+import app.tilli.blockchain.service.blockchainreader
 import app.tilli.collection.MemCache
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
 import upperbound.Limiter
 
-import scala.concurrent.duration.DurationLong
+import scala.concurrent.duration.DurationInt
 
 object Service extends IOApp {
 
@@ -52,7 +53,7 @@ object Service extends IOApp {
       covalentHqApi <- Resource.eval(IO(new ColaventHqDataProvider[IO](httpClient, concurrent)))
       etherscanApi <- Resource.eval(IO(new EtherscanDataProvider[IO](httpClient, concurrent)))
       cache <- MemCache.resource[IO, String, AddressSimple](duration = 12.hours)
-    } yield Resources(
+    } yield blockchainreader.Resources(
       appConfig = appConfig,
       sslConfig = Some(sslConfig),
       httpClient = httpClient,

@@ -1,4 +1,4 @@
-package app.tilli.blockchain.service
+package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
@@ -108,33 +108,33 @@ object TransactionEventReader extends Logging {
     val sourcedTime = Instant.now.toEpochMilli
 
     val transactionalProducerRecords = transactionEventsResults.events
-      .filterNot{d =>
+      .filterNot { d =>
         val stop = d.isNull
         stop
       }
       .map(eventJson => {
-      val tilliJsonEvent = TilliJsonEvent(
-        BlockchainClasses.Header(
-          trackingId = trackingId,
-          eventTimestamp = sourcedTime,
-          eventId = UUID.randomUUID(),
-          origin = record.value.header.origin ++ List(
-            Origin(
-              source = Some(dataProvider.source),
-              provider = Some(dataProvider.provider),
-              sourcedTimestamp = sourcedTime,
-            )
+        val tilliJsonEvent = TilliJsonEvent(
+          BlockchainClasses.Header(
+            trackingId = trackingId,
+            eventTimestamp = sourcedTime,
+            eventId = UUID.randomUUID(),
+            origin = record.value.header.origin ++ List(
+              Origin(
+                source = Some(dataProvider.source),
+                provider = Some(dataProvider.provider),
+                sourcedTimestamp = sourcedTime,
+              )
+            ),
+            dataType = Some(DataTypeTransactionEvent),
+            version = DataTypeToVersion.get(DataTypeTransactionEvent)
           ),
-          dataType = Some(DataTypeTransactionEvent),
-          version = DataTypeToVersion.get(DataTypeTransactionEvent)
-        ),
-        data = eventJson,
-      )
+          data = eventJson,
+        )
 
-      val transactionHash = root.transactionHash.string.getOption(eventJson)
-      val key = transactionHash.getOrElse(eventJson.toString.hashCode.toString) // TODO: Align on the hashcode
-      ProducerRecord(outputTopic.name, key, tilliJsonEvent)
-    })
+        val transactionHash = root.transactionHash.string.getOption(eventJson)
+        val key = transactionHash.getOrElse(eventJson.toString.hashCode.toString) // TODO: Align on the hashcode
+        ProducerRecord(outputTopic.name, key, tilliJsonEvent)
+      })
 
     val nextPageProducerRecord = for {
       np <- transactionEventsResults.nextPage
@@ -213,7 +213,7 @@ object TransactionEventReader extends Logging {
         ),
       ),
       data = error,
-//      originalEvent = record.value.asJson,
+      //      originalEvent = record.value.asJson,
     )
     ProducerRecords(
       List(ProducerRecord(outputTopic.name, record.key, errorEvent)),
