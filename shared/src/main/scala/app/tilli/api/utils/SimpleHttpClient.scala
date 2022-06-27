@@ -12,6 +12,7 @@ import org.http4s.{EntityDecoder, Headers, Request, Uri}
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 
 object SimpleHttpClient extends Logging {
@@ -62,6 +63,7 @@ object SimpleHttpClient extends Logging {
         ))
       .map(_.leftMap {
         case error: HttpClientError => error
+//        case timeout: TimeoutException => timeout // TODO: add support for other types
         case e => HttpClientError(e)
       })
   }

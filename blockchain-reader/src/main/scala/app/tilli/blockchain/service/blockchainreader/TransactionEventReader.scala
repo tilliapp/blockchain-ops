@@ -59,7 +59,12 @@ object TransactionEventReader extends Logging {
                           case Some("429") =>
                             log.error(s"Request got throttled by data provider. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
                             toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
-                          case _ => toErrorProducerRecords(committable.record, committable.offset, httpClientError.asJson, outputTopicFailure, trackingId, r.transactionEventSource)
+                          case _ =>
+                            if(httpClientError.message.contains("timed out")) { // TODO: This is specific to blaze http client. Use timeout execption insteaqd
+                              log.warn(s"Request timed out. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
+                              toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
+                            } else
+                              toErrorProducerRecords(committable.record, committable.offset, httpClientError.asJson, outputTopicFailure, trackingId, r.transactionEventSource)
                         }
                       case throwable: Throwable =>
                         log.error(s"Unknown Error: ${throwable.getMessage}: ${throwable}")

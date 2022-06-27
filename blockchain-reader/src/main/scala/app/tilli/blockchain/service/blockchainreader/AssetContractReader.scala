@@ -44,7 +44,7 @@ object AssetContractReader extends Logging {
           .subscribeTo(inputTopic.name)
           .records
           //        .evalTap(r => IO(println(r.record.value)))
-          .mapAsync(12) { committable =>
+          .mapAsync(8) { committable =>
             val trackingId = root.trackingId.string.getOption(committable.record.value).flatMap(s => Try(UUID.fromString(s)).toOption).getOrElse(UUID.randomUUID())
             val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
             record.map {
