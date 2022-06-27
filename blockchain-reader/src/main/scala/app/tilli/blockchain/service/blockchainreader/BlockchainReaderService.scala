@@ -8,6 +8,7 @@ import app.tilli.blockchain.dataprovider.{ColaventHqDataProvider, EtherscanDataP
 import app.tilli.blockchain.service.blockchainreader
 import app.tilli.blockchain.service.blockchainreader.config.AppConfig.readerAppConfig
 import app.tilli.collection.MemCache
+import app.tilli.persistence.kafka.SslConfig
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
 import upperbound.Limiter
@@ -53,10 +54,12 @@ object BlockchainReaderService extends IOApp {
       covalentHqApi <- Resource.eval(IO(new ColaventHqDataProvider[IO](httpClient, concurrent)))
       etherscanApi <- Resource.eval(IO(new EtherscanDataProvider[IO](httpClient, concurrent)))
       cache <- MemCache.resource[IO, String, AddressSimple](duration = 12.hours)
+
+      convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
     } yield blockchainreader.Resources(
       appConfig = appConfig,
       httpServerPort = appConfig.httpServerPort,
-      sslConfig = Some(sslConfig),
+      sslConfig = Some(convertedSslConfig),
       httpClient = httpClient,
       openSeaRateLimiter = openSeaRateLimiter,
       covalentHqRateLimiter = covalentHqRateLimiter,

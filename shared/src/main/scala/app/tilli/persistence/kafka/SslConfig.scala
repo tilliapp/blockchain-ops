@@ -23,3 +23,5 @@ trait SslConfig extends Logging {
   }
 
 }
+
+object SslConfig extends SslConfig
