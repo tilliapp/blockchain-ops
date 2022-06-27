@@ -27,7 +27,7 @@ val sharedSettings: Seq[Def.Setting[_]] = Seq(
 
 lazy val root = (project in file("."))
   .settings(
-    name := "asset-contract-reader",
+    name := "blockchain-reader",
     sharedSettings,
     libraryDependencies ++= Dependencies.core,
     libraryDependencies ++= Dependencies.utils,
