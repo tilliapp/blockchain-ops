@@ -12,7 +12,8 @@ trait SslConfig extends Logging {
           GcsFileLoader.loadFromGcsToLocalFile(e._2) match {
             case Right(file) =>
               val temp = file.getAbsolutePath
-              e._1 ->temp
+              log.info(s"Converted ${e._2} to $temp for property ${e._1}")
+              e._1 -> temp
             case Left(err) =>
               log.error("Error occurred while loading SSL Config", err)
               e._1 -> e._2
