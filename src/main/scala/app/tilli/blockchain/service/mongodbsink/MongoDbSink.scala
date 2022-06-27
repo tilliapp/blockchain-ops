@@ -9,8 +9,6 @@ import fs2.Chunk
 import fs2.kafka._
 import io.circe.Json
 import io.circe.optics.JsonPath.root
-import io.circe.syntax.EncoderOps
-import mongo4cats.circe.MongoJsonCodecs
 import mongo4cats.collection.{BulkWriteOptions, UpdateOptions, WriteCommand}
 
 import java.time.Instant
@@ -49,8 +47,8 @@ object MongoDbSink extends Logging {
       .subscribeTo(inputTopic.name)
       .records
       .chunks
-      .mapAsync(8) {chunk =>
-//      .evalMapChunk { chunk =>
+      .mapAsync(8) { chunk =>
+        //      .evalMapChunk { chunk =>
         val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
         val processed = write(resources, transform(chunk))
           .flatMap {

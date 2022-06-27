@@ -1,7 +1,7 @@
 package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.config.AppConfig
+import app.tilli.blockchain.service.blockchainreader.config.AppConfig
 import cats.effect.IO
 import io.chrisdavenport.mules.Cache
 import org.http4s.client.Client

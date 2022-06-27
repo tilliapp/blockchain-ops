@@ -4,7 +4,7 @@ import app.tilli.BlazeServer
 import app.tilli.api.utils.BlazeHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses.TransactionRecord
 import app.tilli.blockchain.codec.BlockchainCodec._
-import app.tilli.blockchain.config.AppConfig.readerAppConfig
+import app.tilli.blockchain.service.mongodbsink.config.AppConfig.readerAppConfig
 import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
@@ -31,15 +31,13 @@ object MongoSinkService extends IOApp {
 
     import mongo4cats.circe._
     val resources = for {
-      appConfig <- ApplicationConfig()
-      httpClient <- BlazeHttpClient.clientWithRetry(appConfig.httpClientConfig)
+      appConfig <- ApplicationConfig(file = "application-mongo-db-sink.conf")
       mongoClient <- MongoDbAdapter.resource(appConfig.mongoDbConfig.url)
       mongoDatabase <- Resource.eval(mongoClient.getDatabase(mongoDbName))
       transactionCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[TransactionRecord](collectionName))
     } yield Resources[IO](
       appConfig = appConfig,
       sslConfig = Some(sslConfig),
-      httpClient = httpClient,
       mongoClient = mongoClient,
       mongoDatabase = mongoDatabase,
       transactionCollection = transactionCollection,

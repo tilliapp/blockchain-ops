@@ -4,9 +4,9 @@ import app.tilli.BlazeServer
 import app.tilli.api.utils.BlazeHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses.AddressSimple
 import app.tilli.blockchain.codec.BlockchainCodec._
-import app.tilli.blockchain.config.AppConfig.readerAppConfig
 import app.tilli.blockchain.dataprovider.{ColaventHqDataProvider, EtherscanDataProvider, OpenSeaApi}
 import app.tilli.blockchain.service.blockchainreader
+import app.tilli.blockchain.service.blockchainreader.config.AppConfig.readerAppConfig
 import app.tilli.collection.MemCache
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
@@ -14,7 +14,7 @@ import upperbound.Limiter
 
 import scala.concurrent.duration.DurationInt
 
-object Service extends IOApp {
+object BlockchainReaderService extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = {
     implicit val async = Async[IO]
@@ -32,7 +32,7 @@ object Service extends IOApp {
     )
 
     val resources = for {
-      appConfig <- ApplicationConfig()
+      appConfig <- ApplicationConfig(file = "application-blockchain-reader.conf")
       httpClient <- BlazeHttpClient.clientWithRetry(appConfig.httpClientConfig)
       openSeaRateLimiter <- Limiter.start[IO](
         minInterval = appConfig.rateLimitOpenSea.minIntervalMs.milliseconds,
