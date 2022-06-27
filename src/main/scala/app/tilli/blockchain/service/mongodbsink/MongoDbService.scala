@@ -1,7 +1,6 @@
 package app.tilli.blockchain.service.mongodbsink
 
 import app.tilli.BlazeServer
-import app.tilli.api.utils.BlazeHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses.TransactionRecord
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.service.mongodbsink.config.AppConfig.readerAppConfig
@@ -9,7 +8,7 @@ import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
 
-object MongoSinkService extends IOApp {
+object MongoDbService extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = {
     implicit val async = Async[IO]

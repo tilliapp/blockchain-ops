@@ -25,9 +25,9 @@ val sharedSettings: Seq[Def.Setting[_]] = Seq(
   }
 )
 
-lazy val root = (project in file("."))
+lazy val blockchainReaderService = (project in file("."))
   .settings(
-    name := "blockchain-reader",
+    name := "blockchain-reader-service",
     sharedSettings,
     libraryDependencies ++= Dependencies.core,
     libraryDependencies ++= Dependencies.utils,
@@ -35,6 +35,20 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Dependencies.apiDependencies,
     libraryDependencies ++= Dependencies.dataDependencies,
     libraryDependencies ++= Dependencies.serdesDependencies,
-    mainClass in assembly := Some("app.tilli.app.ApiApp"),
-    assemblyJarName in assembly := "run.jar"
+    mainClass in assembly := Some("app.tilli.blockchain.service.blockchainreader.BlockchainReaderService"),
+    assemblyJarName in assembly := "blockchain-reader-service.jar"
+  )
+
+lazy val mongoDbService = (project in file("."))
+  .settings(
+    name := "mongo-db-service",
+    sharedSettings,
+    libraryDependencies ++= Dependencies.core,
+    libraryDependencies ++= Dependencies.utils,
+    libraryDependencies ++= Dependencies.testDependencies,
+    libraryDependencies ++= Dependencies.apiDependencies,
+    libraryDependencies ++= Dependencies.dataDependencies,
+    libraryDependencies ++= Dependencies.serdesDependencies,
+    mainClass in assembly := Some("app.tilli.blockchain.service.mongodbsink.MongoDbService"),
+    assemblyJarName in assembly := "mongo-db-service.jar"
   )
