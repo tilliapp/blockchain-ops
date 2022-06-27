@@ -1,4 +1,4 @@
-package app.tilli.integration.gcp
+package app.tilli.integration
 
 class ResourcesToLocalFile {
 
