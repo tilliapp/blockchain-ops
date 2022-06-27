@@ -78,7 +78,7 @@ object BlockchainReaderService extends IOApp {
 
   def httpServer[F[_] : Async](implicit r: Resources): F[Unit] =
     BlazeServer
-      .serverWithHealthCheck(httpPort = 8081)
+      .serverWithHealthCheck(httpPort = 8080)
       .serve
       .compile
       .drain
