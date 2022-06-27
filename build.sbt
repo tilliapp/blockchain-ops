@@ -37,6 +37,7 @@ lazy val shared = (project in file("shared"))
     libraryDependencies ++= Dependencies.apiDependencies,
     libraryDependencies ++= Dependencies.dataDependencies,
     libraryDependencies ++= Dependencies.serdesDependencies,
+    libraryDependencies ++= Dependencies.cloudDependencies,
   )
 
 lazy val blockchainReader = (project in file("blockchain-reader"))
