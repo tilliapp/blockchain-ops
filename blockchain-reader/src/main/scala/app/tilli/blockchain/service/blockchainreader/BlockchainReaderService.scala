@@ -73,9 +73,9 @@ object BlockchainReaderService extends IOApp {
 
     resources.use { implicit r =>
       httpServer &>
-//        AssetContractReader.assetContractRequestsStream(r) &>
-//        AssetContractEventReader.assetContractEventRequestStream(r) &>
-//        AddressFilter.addressFilterStream(r) &>
+        AssetContractReader.assetContractRequestsStream(r) &>
+        AssetContractEventReader.assetContractEventRequestStream(r) &>
+        AddressFilter.addressFilterStream(r) &>
         TransactionEventReader.transactionEventRequestStream(r)
     }.as(ExitCode.Success)
   }
