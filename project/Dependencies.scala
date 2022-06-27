@@ -58,6 +58,6 @@ object Dependencies {
   )
 
   val cloudDependencies = Seq(
-    "com.google.cloud" % "google-cloud-storage" % "2.8.1"
+    "com.google.cloud" % "google-cloud-storage" % "2.8.1",
   )
 }
