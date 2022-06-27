@@ -1,6 +1,5 @@
-package app.tilli.blockchain.service.mongodbsink.config
+package app.tilli.blockchain.service.blockchainsink.config
 
-import app.tilli.api.utils.HttpClientConfig
 import app.tilli.persistence.kafka.KafkaConsumerConfiguration
 import app.tilli.utils.{InputTopic, OutputTopic}
 import pureconfig.ConfigReader

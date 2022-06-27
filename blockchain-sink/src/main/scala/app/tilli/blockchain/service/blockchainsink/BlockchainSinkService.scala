@@ -1,14 +1,14 @@
-package app.tilli.blockchain.service.mongodbsink
+package app.tilli.blockchain.service.blockchainsink
 
 import app.tilli.BlazeServer
 import app.tilli.blockchain.codec.BlockchainClasses.TransactionRecord
 import app.tilli.blockchain.codec.BlockchainCodec._
-import app.tilli.blockchain.service.mongodbsink.config.AppConfig.readerAppConfig
+import app.tilli.blockchain.service.blockchainsink.config.AppConfig.readerAppConfig
 import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
 
-object MongoDbService extends IOApp {
+object BlockchainSinkService extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = {
     implicit val async = Async[IO]
@@ -30,7 +30,7 @@ object MongoDbService extends IOApp {
 
     import mongo4cats.circe._
     val resources = for {
-      appConfig <- ApplicationConfig(file = "application-mongo-db-sink.conf")
+      appConfig <- ApplicationConfig()
       mongoClient <- MongoDbAdapter.resource(appConfig.mongoDbConfig.url)
       mongoDatabase <- Resource.eval(mongoClient.getDatabase(mongoDbName))
       transactionCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[TransactionRecord](collectionName))
@@ -44,7 +44,7 @@ object MongoDbService extends IOApp {
 
     resources.use { implicit r =>
       httpServer &>
-        MongoDbSink.streamToSink(r)
+        BlockchainSink.streamToSink(r)
     }.as(ExitCode.Success)
 
   }

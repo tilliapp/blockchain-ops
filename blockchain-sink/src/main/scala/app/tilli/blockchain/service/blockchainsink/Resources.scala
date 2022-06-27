@@ -1,7 +1,7 @@
-package app.tilli.blockchain.service.mongodbsink
+package app.tilli.blockchain.service.blockchainsink
 
 import app.tilli.blockchain.codec.BlockchainClasses.TransactionRecord
-import app.tilli.blockchain.service.mongodbsink.config.AppConfig
+import app.tilli.blockchain.service.blockchainsink.config.AppConfig
 import mongo4cats.client.MongoClient
 import mongo4cats.collection.MongoCollection
 import mongo4cats.database.MongoDatabase

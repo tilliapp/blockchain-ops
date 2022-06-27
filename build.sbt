@@ -61,6 +61,6 @@ lazy val blockchainSink = (project in file("blockchain-sink"))
     libraryDependencies ++= Dependencies.apiDependencies,
     libraryDependencies ++= Dependencies.dataDependencies,
     libraryDependencies ++= Dependencies.serdesDependencies,
-    mainClass in assembly := Some("app.tilli.blockchain.service.mongodbsink.MongoDbService"),
-    assemblyJarName in assembly := "mongo-db-service.jar"
+    mainClass in assembly := Some("app.tilli.blockchain.service.blockchainsink.BlockchainSinkService"),
+    assemblyJarName in assembly := "blockchain-sink-service.jar"
   ).dependsOn(shared)

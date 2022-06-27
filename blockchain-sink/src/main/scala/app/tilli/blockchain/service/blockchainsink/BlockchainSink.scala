@@ -1,4 +1,4 @@
-package app.tilli.blockchain.service.mongodbsink
+package app.tilli.blockchain.service.blockchainsink
 
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
@@ -14,7 +14,7 @@ import mongo4cats.collection.{BulkWriteOptions, UpdateOptions, WriteCommand}
 import java.time.Instant
 import java.util.UUID
 
-object MongoDbSink extends Logging {
+object BlockchainSink extends Logging {
 
   def streamToSink[F[_] : Async](
     r: Resources[F],

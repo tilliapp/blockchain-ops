@@ -32,7 +32,7 @@ object BlockchainReaderService extends IOApp {
     )
 
     val resources = for {
-      appConfig <- ApplicationConfig(file = "application-blockchain-reader.conf")
+      appConfig <- ApplicationConfig()
       httpClient <- BlazeHttpClient.clientWithRetry(appConfig.httpClientConfig)
       openSeaRateLimiter <- Limiter.start[IO](
         minInterval = appConfig.rateLimitOpenSea.minIntervalMs.milliseconds,
