@@ -9,17 +9,18 @@ import scala.util.{Random, Try}
 
 object GcsFileLoader extends Logging {
 
-  private lazy val storage = StorageOptions.newBuilder()
-    .setCredentials(GoogleCredentials.getApplicationDefault())
-    .build()
-    .getService
-
   def loadFromGcsToLocalFile(
     gcsPath: String,
     fileOutputPath: Option[String] = None,
   ): Either[Throwable, File] = {
     Try {
       val blobId = BlobId.fromGsUtilUri(gcsPath)
+
+      val storage = StorageOptions.newBuilder()
+        .setCredentials(GoogleCredentials.getApplicationDefault())
+        .build()
+        .getService
+
       val blob = storage.get(blobId)
       val readChannel = blob.reader()
       val fileName = new String(Random.alphanumeric.take(20).toArray)
