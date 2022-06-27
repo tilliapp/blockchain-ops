@@ -11,6 +11,7 @@ case class MongoDbConfig(
 
 case class AppConfig(
   environment: String,
+  httpServerPort: Int,
   kafkaConsumerConfiguration: KafkaConsumerConfiguration,
 
   inputTopicTransactionEvent: InputTopic,

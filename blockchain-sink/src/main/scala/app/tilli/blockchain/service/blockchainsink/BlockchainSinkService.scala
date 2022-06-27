@@ -36,6 +36,7 @@ object BlockchainSinkService extends IOApp {
       transactionCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[TransactionRecord](collectionName))
     } yield Resources[IO](
       appConfig = appConfig,
+      httpServerPort = appConfig.httpServerPort,
       sslConfig = Some(sslConfig),
       mongoClient = mongoClient,
       mongoDatabase = mongoDatabase,
@@ -51,7 +52,7 @@ object BlockchainSinkService extends IOApp {
 
   def httpServer[F[_] : Async](implicit r: Resources[F]): F[Unit] =
     BlazeServer
-      .serverWithHealthCheck()
+      .serverWithHealthCheck(r.httpServerPort)
       .serve
       .compile
       .drain
