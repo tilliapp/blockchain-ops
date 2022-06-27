@@ -22,6 +22,7 @@ case class RateLimitConfig(
 
 case class AppConfig(
   environment: String,
+  httpServerPort: Int,
   httpClientConfig: HttpClientConfig,
   kafkaConsumerConfiguration: KafkaConsumerConfiguration,
   kafkaProducerConfiguration: KafkaProducerConfiguration,

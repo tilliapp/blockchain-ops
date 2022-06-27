@@ -8,6 +8,7 @@ import mongo4cats.database.MongoDatabase
 
 case class Resources[F[_]](
   appConfig: AppConfig,
+  httpServerPort: Int,
   sslConfig: Option[Map[String, String]],
   mongoClient: MongoClient[F],
   mongoDatabase: MongoDatabase[F],

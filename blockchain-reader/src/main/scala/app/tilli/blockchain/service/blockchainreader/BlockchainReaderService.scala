@@ -55,6 +55,7 @@ object BlockchainReaderService extends IOApp {
       cache <- MemCache.resource[IO, String, AddressSimple](duration = 12.hours)
     } yield blockchainreader.Resources(
       appConfig = appConfig,
+      httpServerPort = appConfig.httpServerPort,
       sslConfig = Some(sslConfig),
       httpClient = httpClient,
       openSeaRateLimiter = openSeaRateLimiter,
@@ -78,7 +79,7 @@ object BlockchainReaderService extends IOApp {
 
   def httpServer[F[_] : Async](implicit r: Resources): F[Unit] =
     BlazeServer
-      .serverWithHealthCheck(httpPort = 8080)
+      .serverWithHealthCheck(httpPort = r.httpServerPort)
       .serve
       .compile
       .drain
