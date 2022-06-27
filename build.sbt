@@ -25,9 +25,11 @@ val sharedSettings: Seq[Def.Setting[_]] = Seq(
   }
 )
 
-lazy val root = (project in file("."))
+lazy val root = project in file(".")
+
+lazy val shared = (project in file("shared"))
   .settings(
-    name := "asset-contract-reader",
+    name := "shared",
     sharedSettings,
     libraryDependencies ++= Dependencies.core,
     libraryDependencies ++= Dependencies.utils,
@@ -35,6 +37,32 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Dependencies.apiDependencies,
     libraryDependencies ++= Dependencies.dataDependencies,
     libraryDependencies ++= Dependencies.serdesDependencies,
-    mainClass in assembly := Some("app.tilli.app.ApiApp"),
-    assemblyJarName in assembly := "run.jar"
   )
+
+lazy val blockchainReader = (project in file("blockchain-reader"))
+  .settings(
+    name := "blockchainReader",
+    sharedSettings,
+    libraryDependencies ++= Dependencies.core,
+    libraryDependencies ++= Dependencies.utils,
+    libraryDependencies ++= Dependencies.testDependencies,
+    libraryDependencies ++= Dependencies.apiDependencies,
+    libraryDependencies ++= Dependencies.dataDependencies,
+    libraryDependencies ++= Dependencies.serdesDependencies,
+    mainClass in assembly := Some("app.tilli.blockchain.service.blockchainreader.BlockchainReaderService"),
+    assemblyJarName in assembly := "run.jar"
+  ).dependsOn(shared)
+
+lazy val blockchainSink = (project in file("blockchain-sink"))
+  .settings(
+    name := "blockchainSink",
+    sharedSettings,
+    libraryDependencies ++= Dependencies.core,
+    libraryDependencies ++= Dependencies.utils,
+    libraryDependencies ++= Dependencies.testDependencies,
+    libraryDependencies ++= Dependencies.apiDependencies,
+    libraryDependencies ++= Dependencies.dataDependencies,
+    libraryDependencies ++= Dependencies.serdesDependencies,
+    mainClass in assembly := Some("app.tilli.blockchain.service.blockchainsink.BlockchainSinkService"),
+    assemblyJarName in assembly := "run.jar"
+  ).dependsOn(shared)
