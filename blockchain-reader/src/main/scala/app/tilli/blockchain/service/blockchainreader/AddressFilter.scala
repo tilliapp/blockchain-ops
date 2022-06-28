@@ -49,8 +49,8 @@ object AddressFilter extends StreamTrait {
             .consumerStream
             .subscribeTo(inputTopic.name)
             .partitionedRecords
-            .map { partition =>
-              partition.evalMap { committable =>
+            .map { partitionStream =>
+              partitionStream.evalMap { committable =>
                 import cats.implicits._
                 filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
                   .map {

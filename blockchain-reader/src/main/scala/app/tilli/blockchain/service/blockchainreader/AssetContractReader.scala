@@ -46,7 +46,7 @@ object AssetContractReader extends StreamTrait {
             .consumerStream
             .subscribeTo(inputTopic.name)
             .records
-            .mapAsync(8) { committable =>
+            .mapAsync(2) { committable =>
               val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
               record.map {
                 case Right(result) => toProducerRecords(committable, result, outputTopicAssetContract, outputTopicAssetContractRequest, r.assetContractSource)
@@ -66,7 +66,7 @@ object AssetContractReader extends StreamTrait {
     rateLimiter: Limiter[F],
   ): F[Either[HttpClientErrorTrait, Json]] = {
     import cats.implicits._
-    Sync[F].delay(println(s"Processing asset contract request: ${record.value.asJson.spaces2}")) *>
+    Sync[F].delay(log.info(s"Starting initial sync for asset contract: ${record.value.asJson.spaces2}")) *>
       source.getAssetContract(
         root.assetContractAddress.string.getOption(record.value.data).get,
         rateLimiter

@@ -44,7 +44,7 @@ object AssetContractEventReader extends StreamTrait {
             .consumerStream
             .subscribeTo(inputTopic.name)
             .records
-            .mapAsync(8) { committable =>
+            .mapAsync(2) { committable =>
               val trackingId = committable.record.value.header.trackingId
               processRecord(r.assetContractEventSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, AssetContractEventsResult]]]
                 .map {
