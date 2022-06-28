@@ -26,7 +26,7 @@ class ColaventHqDataProviderSpec extends BaseSpec {
     "decode hex to int" in {
       val hexString = "0x00000000000000000000000000000000000000000000000000000000000004e8"
       val Right(result) = ColaventHqDataProvider.toIntegerStringFromHexString(hexString)
-      result mustBe 1256
+      result mustBe "1256"
     }
 
     "handle bad string" in {
@@ -263,18 +263,14 @@ object ColaventHqDataProviderSpec {
       |  "totalPrice" : "190000000000000000",
       |  "quantity" : 1,
       |  "transactionTime" : 1654789065000,
-      |  "logs" : [
-      |    {
-      |      "eventType" : "transfer",
-      |      "logOffset" : 39,
-      |      "fromAddress" : "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
-      |      "toAddress" : "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e",
-      |      "assetContractAddress" : "0x55256178afe74082c4f9afef7e40fec949c1b499",
-      |      "assetContractName" : "Philosophical Foxes V2",
-      |      "assetContractSymbol" : "FOX",
-      |      "tokenType" : null,
-      |      "tokenId" : 1256
-      |    }
-      |  ]
+      |  "eventType" : "transfer",
+      |  "logOffset" : 55,
+      |  "fromAddress" : "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
+      |  "toAddress" : "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e",
+      |  "assetContractAddress" : "0x55256178afe74082c4f9afef7e40fec949c1b499",
+      |  "assetContractName" : "Philosophical Foxes V2",
+      |  "assetContractSymbol" : "FOX",
+      |  "tokenType" : null,
+      |  "tokenId" : "1256"
       |}""".stripMargin
 }
