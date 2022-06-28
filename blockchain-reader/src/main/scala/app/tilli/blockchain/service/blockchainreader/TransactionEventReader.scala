@@ -1,11 +1,12 @@
 package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.blockchain.codec.BlockchainClasses
-import app.tilli.blockchain.codec.BlockchainClasses._
+import app.tilli.blockchain.codec.BlockchainClasses.{TilliJsonEvent, _}
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAssetContractEvent, DataTypeToVersion, DataTypeTransactionEvent}
+import app.tilli.blockchain.service.StreamTrait
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
-import app.tilli.utils.{InputTopic, Logging, OutputTopic}
+import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.data.EitherT
 import cats.effect.{Async, Sync}
 import fs2.kafka._
@@ -18,7 +19,7 @@ import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationLong
 
-object TransactionEventReader extends Logging {
+object TransactionEventReader extends StreamTrait {
 
   def transactionEventRequestStream[F[_] : Async](
     r: Resources,
@@ -38,47 +39,26 @@ object TransactionEventReader extends Logging {
     import cats.implicits._
     import fs2.kafka._
     val stream =
-      kafkaProducer.producerStream.flatMap(producer =>
-        kafkaConsumer
-          .consumerStream
-          .subscribeTo(inputTopic.name)
-          .partitionedRecords
-          .map { partition =>
-            partition.evalMap { committable =>
-              val trackingId = committable.record.value.header.trackingId
-              processRecord(r.transactionEventSource, committable.record, r.covalentHqRateLimiter).asInstanceOf[F[Either[Throwable, TransactionEventsResult]]]
-                .map {
-                  case Right(eventsResult) =>
-                    toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, trackingId, r.transactionEventSource)
-                  case Left(errorTrait) =>
-                    errorTrait match {
-                      case httpClientError: HttpClientError =>
-                        // TODO: If error code is 429 then send it back into the queue
-                        log.error(s"Call failed: ${httpClientError.message} (code ${httpClientError.code}): ${httpClientError.headers}")
-                        httpClientError.code match {
-                          case Some("429") =>
-                            log.error(s"Request got throttled by data provider. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
-                            toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
-                          case _ =>
-                            if(httpClientError.message.contains("timed out")) { // TODO: This is specific to blaze http client. Use timeout execption insteaqd
-                              log.warn(s"Request timed out. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
-                              toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
-                            } else
-                              toErrorProducerRecords(committable.record, committable.offset, httpClientError.asJson, outputTopicFailure, trackingId, r.transactionEventSource)
-                        }
-                      case throwable: Throwable =>
-                        log.error(s"Unknown Error: ${throwable.getMessage}: ${throwable}")
-                        val error = HttpClientError(throwable)
-                        toErrorProducerRecords(committable.record, committable.offset, error.asJson, outputTopicFailure, trackingId, r.transactionEventSource)
-                    }
-                }
-                .flatTap(r => Sync[F].delay(log.info(s"Wrote ${r.records.size} for ${committable.offset}")))
-            }
-          }.parJoinUnbounded
-          .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
-          .map(_.passthrough)
-          .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
-      )
+      kafkaProducer
+        .producerStream
+        .flatMap(producer =>
+          kafkaConsumer
+            .consumerStream
+            .subscribeTo(inputTopic.name)
+            .partitionedRecords
+            .map { partitionStream =>
+              partitionStream.evalMap { committable =>
+                processRecord(r.transactionEventSource, committable.record, r.covalentHqRateLimiter).asInstanceOf[F[Either[Throwable, TransactionEventsResult]]]
+                  .map {
+                    case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, r.transactionEventSource)
+                    case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.transactionEventSource)
+                  }.flatTap(r => Sync[F].delay(log.info(s"Wrote ${r.records.size} for ${committable.offset}")))
+              }
+            }.parJoinUnbounded
+            .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+            .map(_.passthrough)
+            .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
+        )
     stream.compile.drain
   }
 
@@ -87,17 +67,14 @@ object TransactionEventReader extends Logging {
     record: ConsumerRecord[String, TilliJsonEvent],
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, TransactionEventsResult]] = {
-
     val address = root.address.string.getOption(record.value.data).toRight(new IllegalStateException(s"No toAddress was found for record tracking id ${record.value.header.trackingId}")).asInstanceOf[Either[Throwable, String]]
     val blockChain = root.chain.string.getOption(record.value.data).toRight(new IllegalStateException(s"No chain information was found for record tracking id ${record.value.header.trackingId}")).asInstanceOf[Either[Throwable, String]]
     val nextPage = root.nextPage.string.getOption(record.value.data)
-
     val chain = for {
       bc <- EitherT(Sync[F].pure(blockChain))
       address <- EitherT(Sync[F].pure(address))
       toAddressResult <- EitherT(source.getTransactionEvents(address, bc, nextPage, rateLimiter).asInstanceOf[F[Either[Throwable, TransactionEventsResult]]])
     } yield toAddressResult
-
     chain.value
   }
 
@@ -107,16 +84,12 @@ object TransactionEventReader extends Logging {
     transactionEventsResults: TransactionEventsResult,
     outputTopic: OutputTopic,
     inputTopic: InputTopic,
-    trackingId: UUID,
     dataProvider: DataProvider,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val sourcedTime = Instant.now.toEpochMilli
-
+    val trackingId = record.value.header.trackingId
     val transactionalProducerRecords = transactionEventsResults.events
-      .filterNot { d =>
-        val stop = d.isNull
-        stop
-      }
+      .filterNot(_.isNull)
       .map(eventJson => {
         val tilliJsonEvent = TilliJsonEvent(
           BlockchainClasses.Header(
@@ -177,7 +150,7 @@ object TransactionEventReader extends Logging {
     )
   }
 
-  def toRetryPageProducerRecords[F[_]](
+  override def toRetryPageProducerRecords[F[_]](
     record: ConsumerRecord[String, TilliJsonEvent],
     offset: CommittableOffset[F],
     inputTopic: InputTopic,
@@ -193,35 +166,6 @@ object TransactionEventReader extends Logging {
     )
     ProducerRecords(
       List(ProducerRecord(inputTopic.name, record.key, newRequestTilliJsonEvent)),
-      offset
-    )
-  }
-
-  def toErrorProducerRecords[F[_]](
-    record: ConsumerRecord[String, TilliJsonEvent],
-    offset: CommittableOffset[F],
-    error: Json,
-    outputTopic: OutputTopic,
-    trackingId: UUID,
-    dataProvider: DataProvider,
-  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    val errorEvent = record.value.copy(
-      header = record.value.header.copy(
-        eventTimestamp = Instant.now().toEpochMilli,
-        eventId = UUID.randomUUID(),
-        origin = record.value.header.origin ++ List(
-          Origin(
-            source = Some(dataProvider.source),
-            provider = Some(dataProvider.provider),
-            sourcedTimestamp = Instant.now.toEpochMilli,
-          )
-        ),
-      ),
-      data = error,
-      //      originalEvent = record.value.asJson,
-    )
-    ProducerRecords(
-      List(ProducerRecord(outputTopic.name, record.key, errorEvent)),
       offset
     )
   }

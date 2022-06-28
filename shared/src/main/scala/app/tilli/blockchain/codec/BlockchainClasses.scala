@@ -183,4 +183,12 @@ object BlockchainClasses {
     key: Option[String],
     data: TransactionRecordData,
   )
+
+  case class TilliDataProviderError(
+    originalEvent: Option[TilliJsonEvent],
+    request: Option[String],
+    error: Option[String],
+    dataSource: Option[UUID],
+    dataProvider: Option[UUID],
+  )
 }
