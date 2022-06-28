@@ -91,7 +91,7 @@ object BlockchainClasses {
     def getAssetContract(
       assetContractAddress: String,
       rateLimiter: Limiter[F],
-    ): F[Either[HttpClientErrorTrait, Json]]
+    ): F[Either[Throwable, Json]]
 
   }
 
@@ -100,7 +100,7 @@ object BlockchainClasses {
     def getAssetContractType(
       assetContractAddress: String,
       rateLimiter: Limiter[F],
-    ): F[Either[HttpClientErrorTrait, Option[AddressType.Value]]]
+    ): F[Either[Throwable, Option[AddressType.Value]]]
 
   }
 
@@ -116,7 +116,7 @@ object BlockchainClasses {
       assetContractAddress: String,
       nextPage: Option[String],
       rateLimiter: Limiter[F],
-    ): F[Either[HttpClientErrorTrait, AssetContractEventsResult]]
+    ): F[Either[Throwable, AssetContractEventsResult]]
 
     def getAssetContractAddress(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String]
   }
@@ -133,7 +133,7 @@ object BlockchainClasses {
       chainId: String,
       nextPage: Option[String],
       rateLimiter: Limiter[F],
-    ): F[Either[HttpClientErrorTrait, TransactionEventsResult]]
+    ): F[Either[Throwable, TransactionEventsResult]]
 
   }
 

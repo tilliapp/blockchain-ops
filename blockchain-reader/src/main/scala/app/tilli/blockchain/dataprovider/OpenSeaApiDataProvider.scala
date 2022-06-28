@@ -1,7 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractEventSource, AssetContractEventsResult, AssetContractSource, HttpClientErrorTrait, TilliJsonEvent}
+import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractEventSource, AssetContractEventsResult, AssetContractSource, TilliJsonEvent}
 import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType}
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
@@ -35,14 +35,14 @@ class OpenSeaApi[F[_] : Sync](
     Header.Raw(CIString("Accept"), "application/json"),
   )
 
-//  private implicit val entityDecoderString: EntityDecoder[F, String] = EntityDecoder.text(concurrent)
-//  private implicit val decoderJson: Decoder[Json] = Decoder.decodeJson
+  //  private implicit val entityDecoderString: EntityDecoder[F, String] = EntityDecoder.text(concurrent)
+  //  private implicit val decoderJson: Decoder[Json] = Decoder.decodeJson
   override implicit val client: Client[F] = httpClient
 
   override def getAssetContract(
     assetContractAddress: String,
     rateLimiter: Limiter[F],
-  ): F[Either[HttpClientErrorTrait, Json]] = {
+  ): F[Either[Throwable, Json]] = {
     val path = s"api/v1/asset_contract/$assetContractAddress"
     rateLimiter.submit(
       SimpleHttpClient
@@ -80,7 +80,7 @@ class OpenSeaApi[F[_] : Sync](
     assetContractAddress: String,
     nextPage: Option[String],
     rateLimiter: Limiter[F],
-  ): F[Either[HttpClientErrorTrait, AssetContractEventsResult]] = {
+  ): F[Either[Throwable, AssetContractEventsResult]] = {
     val path = "api/v1/events"
     val queryParams = Map(
       "collection_slug" -> assetContractAddress,
@@ -101,8 +101,8 @@ class OpenSeaApi[F[_] : Sync](
             headers = headers,
           )
       ))
-      events <- EitherT(Sync[F].pure(Right(assetContractEventsFromResult(result)).asInstanceOf[Either[HttpClientErrorTrait, List[Json]]]))
-      nextPage <- EitherT(Sync[F].pure(Right(getNextPageFromResult(result)).asInstanceOf[Either[HttpClientErrorTrait, Option[String]]]))
+      events <- EitherT(Sync[F].pure(Right(assetContractEventsFromResult(result)).asInstanceOf[Either[Throwable, List[Json]]]))
+      nextPage <- EitherT(Sync[F].pure(Right(getNextPageFromResult(result)).asInstanceOf[Either[Throwable, Option[String]]]))
     } yield AssetContractEventsResult(
       events = events,
       nextPage = nextPage,
