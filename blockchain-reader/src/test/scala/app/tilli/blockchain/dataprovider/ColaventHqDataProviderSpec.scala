@@ -263,6 +263,7 @@ object ColaventHqDataProviderSpec {
       |  "totalPrice" : "190000000000000000",
       |  "quantity" : 1,
       |  "transactionTime" : 1654789065000,
+      |  "blockHeight" : 14933373,
       |  "eventType" : "transfer",
       |  "logOffset" : 55,
       |  "fromAddress" : "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
