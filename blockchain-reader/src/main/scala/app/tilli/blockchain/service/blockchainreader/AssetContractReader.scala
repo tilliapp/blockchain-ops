@@ -4,8 +4,9 @@ import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAssetContract, DataTypeAssetContractEventRequest, DataTypeToVersion}
+import app.tilli.blockchain.service.StreamTrait
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
-import app.tilli.utils.{Logging, OutputTopic}
+import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.effect.{Async, Sync}
 import fs2.kafka._
 import io.circe.Json
@@ -16,74 +17,72 @@ import upperbound.Limiter
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationLong
-import scala.util.Try
 
-object AssetContractReader extends Logging {
+object AssetContractReader extends StreamTrait {
 
   def assetContractRequestsStream[F[_] : Async](
     r: Resources,
   )(implicit
-    valueDeserializer: Deserializer[F, Json],
+    valueDeserializer: Deserializer[F, TilliJsonEvent],
     keySerializer: RecordSerializer[F, String],
     valueSerializer: RecordSerializer[F, TilliJsonEvent]
   ): F[Unit] = {
     import cats.implicits._
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaProducerConfig = r.appConfig.kafkaProducerConfiguration
-    val kafkaConsumer = new KafkaConsumer[Option[UUID], Json](kafkaConsumerConfig, r.sslConfig)
+    val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
     val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig, r.sslConfig)
     val inputTopic = r.appConfig.inputTopicAssetContractRequest
     val outputTopicAssetContract = r.appConfig.outputTopicAssetContract
     val outputTopicAssetContractRequest = r.appConfig.outputTopicAssetContractEventRequest
+    val outputTopicFailure = r.appConfig.outputTopicFailureEvent
 
     import fs2.kafka._
     val stream =
-      kafkaProducer.producerStream.flatMap(producer =>
-        kafkaConsumer
-          .consumerStream
-          .subscribeTo(inputTopic.name)
-          .records
-          //        .evalTap(r => IO(println(r.record.value)))
-          .mapAsync(8) { committable =>
-            val trackingId = root.trackingId.string.getOption(committable.record.value).flatMap(s => Try(UUID.fromString(s)).toOption).getOrElse(UUID.randomUUID())
-            val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
-            record.map {
-              case Right(json) => toProducerRecords(committable.offset, json, outputTopicAssetContract, outputTopicAssetContractRequest, trackingId, r.assetContractSource)
-              case Left(errorTrait) =>
-                log.error(s"Call failed: ${errorTrait.message} (code ${errorTrait.code}): ${errorTrait.headers}")
-                toErrorProducerRecords(committable.offset, Json.Null, outputTopicAssetContract, trackingId, r.assetContractSource)
+      kafkaProducer
+        .producerStream
+        .flatMap(producer =>
+          kafkaConsumer
+            .consumerStream
+            .subscribeTo(inputTopic.name)
+            .records
+            .mapAsync(2) { committable =>
+              val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
+              record.map {
+                case Right(result) => toProducerRecords(committable, result, outputTopicAssetContract, outputTopicAssetContractRequest, r.assetContractSource)
+                case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
+              }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
             }
-          }
-          .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
-          .map(_.passthrough)
-          .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
-      )
+            .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+            .map(_.passthrough)
+            .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
+        )
     stream.compile.drain
   }
 
   def processRecord[F[_] : Sync : Async](
     source: AssetContractSource[F],
-    record: ConsumerRecord[Option[UUID], Json],
+    record: ConsumerRecord[String, TilliJsonEvent],
     rateLimiter: Limiter[F],
   ): F[Either[HttpClientErrorTrait, Json]] = {
     import cats.implicits._
-    Sync[F].delay(println(s"Processing record: $record")) *>
+    Sync[F].delay(log.info(s"Starting initial sync for asset contract: ${record.value.asJson.spaces2}")) *>
       source.getAssetContract(
-        root.assetContractAddress.string.getOption(record.value).get,
+        root.assetContractAddress.string.getOption(record.value.data).get,
         rateLimiter
       )
   }
 
   def toProducerRecords[F[_]](
-    offset: CommittableOffset[F],
-    record: Json,
+    record: CommittableConsumerRecord[F, String, TilliJsonEvent],
+    result: Json,
     assetContractTopic: OutputTopic,
     assetContractEventRequestTopic: OutputTopic,
-    trackingId: UUID,
     dataProvider: DataProvider,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    val key = root.address.string.getOption(record).orNull
-    val sourced = root.sourced.long.getOption(record).getOrElse(Instant.now().toEpochMilli)
+    val trackingId = record.record.value.header.trackingId
+    val key = root.address.string.getOption(result).orNull
+    val sourced = root.sourced.long.getOption(result).getOrElse(Instant.now().toEpochMilli)
     val tilliJsonEvent1 = TilliJsonEvent(
       BlockchainClasses.Header(
         trackingId = trackingId,
@@ -99,13 +98,13 @@ object AssetContractReader extends Logging {
         dataType = Some(DataTypeAssetContract),
         version = DataTypeToVersion.get(DataTypeAssetContract)
       ),
-      data = record,
+      data = result,
     )
     val assetContractProducerRecord = ProducerRecord(assetContractTopic.name, key, tilliJsonEvent1)
 
     val addressRequest = AssetContractHolderRequest(
-      assetContractAddress = root.address.string.getOption(record),
-      openSeaCollectionSlug = root.openSeaSlug.string.getOption(record),
+      assetContractAddress = root.address.string.getOption(result),
+      openSeaCollectionSlug = root.openSeaSlug.string.getOption(result),
       nextPage = None,
     )
 
@@ -133,18 +132,14 @@ object AssetContractReader extends Logging {
         assetContractProducerRecord,
         assetContractEventRequestProducerRecord,
       ),
-      offset
+      record.offset
     )
   }
 
-  def toErrorProducerRecords[F[_]](
+  override def toRetryPageProducerRecords[F[_]](
+    record: ConsumerRecord[String, TilliJsonEvent],
     offset: CommittableOffset[F],
-    record: Json,
-    outputTopic: OutputTopic,
-    trackingId: UUID,
-    dataProvider: DataProvider,
-  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    ProducerRecords(None, offset)
-  }
+    inputTopic: InputTopic,
+  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = ???
 
 }

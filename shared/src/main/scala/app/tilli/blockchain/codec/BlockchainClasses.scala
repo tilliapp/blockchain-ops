@@ -14,7 +14,7 @@ object BlockchainClasses {
 
     def detail: Option[String]
 
-    def code: Option[String]
+    def code: Option[Int]
 
     def reason: Option[String]
 
@@ -26,7 +26,7 @@ object BlockchainClasses {
   case class HttpClientError(
     override val message: String,
     override val detail: Option[String],
-    override val code: Option[String],
+    override val code: Option[Int],
     override val reason: Option[String],
     override val headers: Option[String],
     override val url: Option[String],
@@ -182,5 +182,13 @@ object BlockchainClasses {
     transactionTime: Option[Instant],
     key: Option[String],
     data: TransactionRecordData,
+  )
+
+  case class TilliDataProviderError(
+    originalEvent: Option[TilliJsonEvent],
+    request: Option[String],
+    error: Option[String],
+    dataSource: Option[UUID],
+    dataProvider: Option[UUID],
   )
 }

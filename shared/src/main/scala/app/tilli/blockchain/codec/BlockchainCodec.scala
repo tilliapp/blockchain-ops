@@ -21,6 +21,8 @@ object BlockchainCodec extends MongoJsonCodecs{
   implicit lazy val codecHeader: Codec[Header] = deriveCodec
   implicit lazy val codecOrigin: Codec[Origin] = deriveCodec
   implicit lazy val codecTilliJsonEvent: Codec[TilliJsonEvent] = deriveCodec
+  implicit lazy val codecTilliDataProviderError: Codec[TilliDataProviderError] = deriveCodec
+
   implicit lazy val codecAssetContractHolderRequest: Codec[AssetContractHolderRequest] = deriveCodec
   implicit lazy val codecAddressRequest: Codec[AddressRequest] = deriveCodec
   implicit lazy val codecTransactionEventsResult: Codec[TransactionEventsResult] = deriveCodec
@@ -43,5 +45,8 @@ object BlockchainCodec extends MongoJsonCodecs{
 
   implicit val serializerJson: Serializer[IO, Json] = Fs2KafkaCodec.serializer
   implicit val serializerTilliJsonEvent: Serializer[IO, TilliJsonEvent] = Fs2KafkaCodec.serializer
+
+  implicit val serializerTilliDataProviderError: Serializer[IO, TilliDataProviderError] = Fs2KafkaCodec.serializer
+
 
 }

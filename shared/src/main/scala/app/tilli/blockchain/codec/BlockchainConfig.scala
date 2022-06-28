@@ -1,7 +1,5 @@
 package app.tilli.blockchain.codec
 
-import app.tilli.blockchain.codec.BlockchainClasses.DataProvider
-
 object BlockchainConfig {
 
   val DataTypeAssetContract = "AssetContract"
@@ -9,6 +7,7 @@ object BlockchainConfig {
   val DataTypeAssetContractEvent = "AssetContractEvent"
   val DataTypeAddressRequest = "AddressRequest"
   val DataTypeTransactionEvent = "TransactionEvent"
+  val DataTypeDataProviderError = "DataProviderError"
 
   val Version_20220617 = "2022-06-17"
   val DataTypeToVersion = Map(
@@ -17,6 +16,7 @@ object BlockchainConfig {
     DataTypeAssetContractEvent -> Version_20220617,
     DataTypeAddressRequest -> Version_20220617,
     DataTypeTransactionEvent -> Version_20220617,
+    DataTypeDataProviderError -> Version_20220617,
   )
 
   val VersionToDataType = DataTypeToVersion.map(t => t._2 -> t._1)

@@ -4,8 +4,10 @@ import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAddressRequest, DataTypeToVersion}
+import app.tilli.blockchain.service.StreamTrait
+import app.tilli.logging.Logging
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
-import app.tilli.utils.{Logging, OutputTopic}
+import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.data.EitherT
 import cats.effect.{Async, Sync}
 import fs2.kafka._
@@ -19,7 +21,7 @@ import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationLong
 
-object AddressFilter extends Logging {
+object AddressFilter extends StreamTrait {
 
   //  private val cache = new LRUCacheMap[String, AddressSimple](maxEntries = 20000)
 
@@ -36,32 +38,31 @@ object AddressFilter extends Logging {
     val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig, r.sslConfig)
     val inputTopic = r.appConfig.inputTopicAddressContractEvent
     val outputTopic = r.appConfig.outputTopicAddressRequest
+    val outputTopicFailure = r.appConfig.outputTopicFailureEvent
 
     import fs2.kafka._
     val stream =
-      kafkaProducer.producerStream.flatMap(producer =>
-        kafkaConsumer
-          .consumerStream
-          .subscribeTo(inputTopic.name)
-          .partitionedRecords
-          .map { partition =>
-            partition.evalMap { committable =>
-              import cats.implicits._
-              val trackingId = committable.record.value.header.trackingId
-              filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
-                .map {
-                  case Right(res) =>
-                    toProducerRecords(committable.record, committable.offset, res, outputTopic, trackingId)
-                  case Left(err) =>
-                    log.error(s"Call failed: ${err.message} (code ${err.code}): ${err.headers.map(_.toString)}")
-                    toErrorProducerRecords(committable.offset, Json.Null, outputTopic, trackingId, r.assetContractSource)
-                }
-            }
-          }.parJoinUnbounded
-          .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
-          .map(_.passthrough)
-          .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
-      )
+      kafkaProducer
+        .producerStream
+        .flatMap(producer =>
+          kafkaConsumer
+            .consumerStream
+            .subscribeTo(inputTopic.name)
+            .partitionedRecords
+            .map { partitionStream =>
+              partitionStream.evalMap { committable =>
+                import cats.implicits._
+                filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
+                  .map {
+                    case Right(res) => toProducerRecords(committable.record, committable.offset, res, outputTopic)
+                    case Left(err) => handleDataProviderError(committable, err, inputTopic, outputTopicFailure, r.transactionEventSource)
+                  }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
+              }
+            }.parJoinUnbounded
+            .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+            .map(_.passthrough)
+            .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
+        )
     stream.compile.drain
   }
 
@@ -70,7 +71,7 @@ object AddressFilter extends Logging {
     cache: Cache[F, String, AddressSimple],
     assetContractTypeSource: AssetContractTypeSource[F],
     rateLimiter: Limiter[F],
-  ): F[Either[HttpClientErrorTrait, List[AddressRequest]]] = {
+  ): F[Either[Throwable, List[AddressRequest]]] = {
     val blockChain = root.chain.string.getOption(record.value.data)
 
     val addresses = List(
@@ -97,7 +98,7 @@ object AddressFilter extends Logging {
     cache: Cache[F, String, AddressSimple],
     assetContractTypeSource: AssetContractTypeSource[F],
     rateLimiter: Limiter[F],
-  ): F[Either[HttpClientErrorTrait, Option[String]]] = {
+  ): F[Either[Throwable, Option[String]]] = {
     import cats.implicits._
     cache
       .lookup(a)
@@ -131,8 +132,8 @@ object AddressFilter extends Logging {
     offset: CommittableOffset[F],
     addressRequests: List[AddressRequest],
     outputTopic: OutputTopic,
-    trackingId: UUID,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
+    val trackingId = record.value.header.trackingId
     val sourcedTime = Instant.now.toEpochMilli
     val requests = addressRequests.map {
       ar =>
@@ -155,13 +156,24 @@ object AddressFilter extends Logging {
     )
   }
 
-  def toErrorProducerRecords[F[_]](
+  override def toRetryPageProducerRecords[F[_]](
+    record: ConsumerRecord[String, TilliJsonEvent],
     offset: CommittableOffset[F],
-    record: Json,
-    outputTopic: OutputTopic,
-    trackingId: UUID,
-    dataProvider: DataProvider,
+    inputTopic: InputTopic,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    ProducerRecords(None, offset)
+    val Right(request) = record.value.data.as[AssetContractHolderRequest]
+    val newAssetContractHolderRequest = request.copy(attempt = request.attempt + 1)
+    val newRequestTilliJsonEvent = record.value.copy(
+      header = record.value.header.copy(
+        eventTimestamp = Instant.now().toEpochMilli,
+        eventId = UUID.randomUUID(),
+      ),
+      data = newAssetContractHolderRequest.asJson
+    )
+    ProducerRecords(
+      List(ProducerRecord(inputTopic.name, record.key, newRequestTilliJsonEvent)),
+      offset
+    )
   }
+
 }

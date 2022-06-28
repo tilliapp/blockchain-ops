@@ -1,6 +1,6 @@
 package app.tilli.api.utils
 
-import app.tilli.blockchain.codec.BlockchainClasses.{HttpClientError, HttpClientErrorTrait}
+import app.tilli.blockchain.codec.BlockchainClasses.HttpClientError
 import app.tilli.logging.Logging
 import app.tilli.serializer.KeyConverter
 import cats.effect.Sync
@@ -12,8 +12,6 @@ import org.http4s.{EntityDecoder, Headers, Request, Uri}
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeoutException
-import scala.concurrent.duration.DurationInt
 
 object SimpleHttpClient extends Logging {
 
@@ -27,7 +25,7 @@ object SimpleHttpClient extends Logging {
     client: Client[F],
     entityDecoder: EntityDecoder[F, String],
     decoder: Decoder[A],
-  ): F[Either[HttpClientErrorTrait, B]] = {
+  ): F[Either[Throwable, B]] = {
     val Right(baseUri) = Uri.fromString(s"$host/$path")
     val uri = baseUri.withQueryParams(queryParams)
 
@@ -39,20 +37,19 @@ object SimpleHttpClient extends Logging {
     call { err =>
       err.body.compile.toList.map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
         .flatMap(errorMessage =>
-          Sync[F].delay(log.error(s"Error while calling endpoint ${uri.renderString}: ${err.toString()}: $errorMessage")) *>
+//          Sync[F].delay(log.error(s"Error while calling endpoint ${uri.renderString}: ${err.toString()}: $errorMessage")) *>
             Sync[F].pure(
               HttpClientError(
                 message = s"Error while calling endpoint: $errorMessage",
                 detail = Option(err.toString()).filter(s => s != null && s.nonEmpty),
-                code = Option(err.status.code.toString).filter(s => s != null && s.nonEmpty),
+                code = Option(err.status.code),
                 reason = Option(err.status.reason).filter(s => s != null && s.nonEmpty),
                 headers = Option(err.headers.toString),
                 url = Option(uri.renderString).filter(s => s != null && s.nonEmpty)
               )
             )
         )
-    }
-      .attempt
+    }.attempt
       .map(_
         .flatMap(s => KeyConverter.snakeCaseToCamelCase(s))
         .flatMap(s =>
@@ -61,11 +58,6 @@ object SimpleHttpClient extends Logging {
             data <- json.as[A]
           } yield conversion(data)
         ))
-      .map(_.leftMap {
-        case error: HttpClientError => error
-//        case timeout: TimeoutException => timeout // TODO: add support for other types
-        case e => HttpClientError(e)
-      })
   }
 
   def callPaged[F[_] : Sync, A, B](
@@ -77,30 +69,25 @@ object SimpleHttpClient extends Logging {
     conversion: A => B,
     headers: Headers = Headers.empty,
     uuid: Option[UUID] = None,
-    sleepMs: DurationInt = 250
   )(implicit
     client: Client[F],
     entityDecoder: EntityDecoder[F, String],
     decoder: Decoder[A],
     encoder: Encoder[B],
-  ): F[List[Either[HttpClientErrorTrait, B]]] = {
-    val stream: fs2.Stream[F, Either[HttpClientErrorTrait, B]] =
+  ): F[List[Either[Throwable, B]]] = {
+    val stream: fs2.Stream[F, Either[Throwable, B]] =
       fs2.Stream.unfoldLoopEval(s = "")(page => {
         import io.circe.optics.JsonPath.root
         import io.circe.syntax.EncoderOps
         val withPageMap = if (page != null && page.nonEmpty) queryParams ++ Map(cursorQueryParamKey -> page) else queryParams
         call(host, path, withPageMap, conversion, headers)
           .map { r =>
-            val obj = r
             val nextPageOption = r match {
               case Left(_) => None
-              case Right(b) =>
-                val json = b.asJson
-                val nextPage = root.selectDynamic(pageParamKey).string.getOption(json)
-                nextPage
+              case Right(b) => root.selectDynamic(pageParamKey).string.getOption(b.asJson)
             }
-            println(s"Next page=$nextPageOption${uuid.map(u => s"($u ${getTimestamp()})").getOrElse("")}")
-            (obj, nextPageOption)
+            log.debug(s"Next page=$nextPageOption${uuid.map(u => s"($u ${getTimestamp()})").getOrElse("")}")
+            (r, nextPageOption)
           }
       })
     stream

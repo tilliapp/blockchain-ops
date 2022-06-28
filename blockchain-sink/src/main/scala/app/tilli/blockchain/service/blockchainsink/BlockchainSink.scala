@@ -2,8 +2,9 @@ package app.tilli.blockchain.service.blockchainsink
 
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
+import app.tilli.logging.Logging
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaConsumerConfiguration}
-import app.tilli.utils.{InputTopic, Logging, OutputTopic}
+import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.effect.{Async, Sync}
 import fs2.Chunk
 import fs2.kafka._
