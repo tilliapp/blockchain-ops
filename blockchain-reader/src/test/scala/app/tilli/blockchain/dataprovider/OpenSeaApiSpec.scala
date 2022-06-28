@@ -11,7 +11,7 @@ class OpenSeaApiSpec extends BaseSpec {
     "decode events" in {
       val Right(json) = io.circe.parser.parse(OpenSeaApiSpec.apiResult)
       val results = OpenSeaApi.assetContractEventsFromResult(json)
-
+      println(results)
       val Right(expectedResultJson) = io.circe.parser.parse(expectedResult)
       val Right(expectedResult2Json) = io.circe.parser.parse(expectedResult2)
 
@@ -388,6 +388,7 @@ object OpenSeaApiSpec {
     """{
       |  "transactionHash" : "0x139de7f5924f71869e44812048ac514d4c55c64d395d18619404911f434a10ae",
       |  "eventType" : "transfer",
+      |  "chain" : "ethereum",
       |  "fromAddress" : "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
       |  "toAddress" : "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e",
       |  "assetContractAddress" : "0x55256178afe74082c4f9afef7e40fec949c1b499",
@@ -402,10 +403,11 @@ object OpenSeaApiSpec {
       |  "transactionTime" : 1654789065000
       |}""".stripMargin
 
-  val expectedResult2 = """
-      |{
+  val expectedResult2 =
+    """{
       |  "transactionHash" : "0x139de7f5924f71869e44812048ac514d4c55c64d395d18619404911f434a10ae",
       |  "eventType" : "sale",
+      |  "chain" : "ethereum",
       |  "fromAddress" : "0xcfb098c1d44eb12f93f9aaece5d6054e2a2240ab",
       |  "toAddress" : "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e",
       |  "assetContractAddress" : "0x55256178afe74082c4f9afef7e40fec949c1b499",
