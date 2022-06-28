@@ -7,6 +7,8 @@ import pureconfig.generic.semiauto.deriveReader
 
 case class MongoDbConfig(
   url: String,
+  db: String,
+  collection: String,
 )
 
 case class AppConfig(
