@@ -1,7 +1,7 @@
 package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.blockchain.codec.BlockchainClasses
-import app.tilli.blockchain.codec.BlockchainClasses.{TilliJsonEvent, _}
+import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAssetContractEvent, DataTypeToVersion, DataTypeTransactionEvent}
 import app.tilli.blockchain.service.StreamTrait
@@ -10,7 +10,6 @@ import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.data.EitherT
 import cats.effect.{Async, Sync}
 import fs2.kafka._
-import io.circe.Json
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
 import upperbound.Limiter
@@ -52,7 +51,7 @@ object TransactionEventReader extends StreamTrait {
                   .map {
                     case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, r.transactionEventSource)
                     case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.transactionEventSource)
-                  }.flatTap(r => Sync[F].delay(log.info(s"Wrote ${r.records.size} for ${committable.offset}")))
+                  }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
               }
             }.parJoinUnbounded
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))

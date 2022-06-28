@@ -56,7 +56,7 @@ object AddressFilter extends StreamTrait {
                   .map {
                     case Right(res) => toProducerRecords(committable.record, committable.offset, res, outputTopic)
                     case Left(err) => handleDataProviderError(committable, err, inputTopic, outputTopicFailure, r.transactionEventSource)
-                  }
+                  }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
               }
             }.parJoinUnbounded
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))

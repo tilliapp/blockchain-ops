@@ -50,7 +50,7 @@ object AssetContractEventReader extends StreamTrait {
                 .map {
                   case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, trackingId, r.assetContractSource)
                   case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
-                }
+                }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
             }
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
             .map(_.passthrough)
