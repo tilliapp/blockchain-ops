@@ -26,7 +26,6 @@ object AssetContractEventReader extends StreamTrait {
     keySerializer: RecordSerializer[F, String],
     valueSerializer: RecordSerializer[F, TilliJsonEvent]
   ): F[Unit] = {
-    import cats.implicits._
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaProducerConfig = r.appConfig.kafkaProducerConfiguration
     val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
@@ -35,25 +34,28 @@ object AssetContractEventReader extends StreamTrait {
     val outputTopic = r.appConfig.outputTopicAssetContractEvent
     val outputTopicFailure = r.appConfig.outputTopicFailureEvent
 
+    import cats.implicits._
     import fs2.kafka._
     val stream =
-      kafkaProducer.producerStream.flatMap(producer =>
-        kafkaConsumer
-          .consumerStream
-          .subscribeTo(inputTopic.name)
-          .records
-          .mapAsync(8) { committable =>
-            val trackingId = committable.record.value.header.trackingId
-            processRecord(r.assetContractEventSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, AssetContractEventsResult]]]
-              .map {
-                case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, trackingId, r.assetContractSource)
-                case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
-              }
-          }
-          .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
-          .map(_.passthrough)
-          .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
-      )
+      kafkaProducer
+        .producerStream
+        .flatMap(producer =>
+          kafkaConsumer
+            .consumerStream
+            .subscribeTo(inputTopic.name)
+            .records
+            .mapAsync(8) { committable =>
+              val trackingId = committable.record.value.header.trackingId
+              processRecord(r.assetContractEventSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, AssetContractEventsResult]]]
+                .map {
+                  case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, trackingId, r.assetContractSource)
+                  case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
+                }
+            }
+            .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+            .map(_.passthrough)
+            .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
+        )
     stream.compile.drain
   }
 

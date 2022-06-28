@@ -42,25 +42,27 @@ object AddressFilter extends StreamTrait {
 
     import fs2.kafka._
     val stream =
-      kafkaProducer.producerStream.flatMap(producer =>
-        kafkaConsumer
-          .consumerStream
-          .subscribeTo(inputTopic.name)
-          .partitionedRecords
-          .map { partition =>
-            partition.evalMap { committable =>
-              import cats.implicits._
-              filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
-                .map {
-                  case Right(res) => toProducerRecords(committable.record, committable.offset, res, outputTopic)
-                  case Left(err) => handleDataProviderError(committable, err, inputTopic, outputTopicFailure, r.transactionEventSource)
-                }
-            }
-          }.parJoinUnbounded
-          .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
-          .map(_.passthrough)
-          .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
-      )
+      kafkaProducer
+        .producerStream
+        .flatMap(producer =>
+          kafkaConsumer
+            .consumerStream
+            .subscribeTo(inputTopic.name)
+            .partitionedRecords
+            .map { partition =>
+              partition.evalMap { committable =>
+                import cats.implicits._
+                filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
+                  .map {
+                    case Right(res) => toProducerRecords(committable.record, committable.offset, res, outputTopic)
+                    case Left(err) => handleDataProviderError(committable, err, inputTopic, outputTopicFailure, r.transactionEventSource)
+                  }
+              }
+            }.parJoinUnbounded
+            .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+            .map(_.passthrough)
+            .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
+        )
     stream.compile.drain
   }
 

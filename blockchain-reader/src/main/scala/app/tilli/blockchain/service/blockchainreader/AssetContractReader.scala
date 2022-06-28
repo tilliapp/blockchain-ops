@@ -39,22 +39,24 @@ object AssetContractReader extends StreamTrait {
 
     import fs2.kafka._
     val stream =
-      kafkaProducer.producerStream.flatMap(producer =>
-        kafkaConsumer
-          .consumerStream
-          .subscribeTo(inputTopic.name)
-          .records
-          .mapAsync(8) { committable =>
-            val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
-            record.map {
-              case Right(result) => toProducerRecords(committable, result, outputTopicAssetContract, outputTopicAssetContractRequest, r.assetContractSource)
-              case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
+      kafkaProducer
+        .producerStream
+        .flatMap(producer =>
+          kafkaConsumer
+            .consumerStream
+            .subscribeTo(inputTopic.name)
+            .records
+            .mapAsync(8) { committable =>
+              val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
+              record.map {
+                case Right(result) => toProducerRecords(committable, result, outputTopicAssetContract, outputTopicAssetContractRequest, r.assetContractSource)
+                case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
+              }
             }
-          }
-          .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
-          .map(_.passthrough)
-          .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
-      )
+            .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+            .map(_.passthrough)
+            .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
+        )
     stream.compile.drain
   }
 
