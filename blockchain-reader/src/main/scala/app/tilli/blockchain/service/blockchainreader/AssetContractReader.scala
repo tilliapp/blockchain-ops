@@ -64,7 +64,7 @@ object AssetContractReader extends StreamTrait {
     source: AssetContractSource[F],
     record: ConsumerRecord[String, TilliJsonEvent],
     rateLimiter: Limiter[F],
-  ): F[Either[HttpClientErrorTrait, Json]] = {
+  ): F[Either[Throwable, Json]] = {
     import cats.implicits._
     Sync[F].delay(log.info(s"Starting initial sync for asset contract: ${record.value.asJson.spaces2}")) *>
       source.getAssetContract(

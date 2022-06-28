@@ -1,7 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.{HttpClientError, HttpClientErrorTrait, TransactionEventSource, TransactionEventsResult}
+import app.tilli.blockchain.codec.BlockchainClasses.{TransactionEventSource, TransactionEventsResult}
 import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, PaymentTokenDecimalsMap, chainPaymentTokenMap}
 import app.tilli.blockchain.dataprovider.ColaventHqDataProvider._
 import cats.data.EitherT
@@ -43,12 +43,12 @@ class ColaventHqDataProvider[F[_] : Sync](
     chainId: String,
     page: Option[String],
     rateLimiter: Limiter[F],
-  ): F[Either[HttpClientErrorTrait, TransactionEventsResult]] = {
+  ): F[Either[Throwable, TransactionEventsResult]] = {
     val covalentChain = chainMap(Chain.withName(chainId))
     val path = s"v1/$covalentChain/address/$address/transactions_v2/"
     import cats.implicits._
     val chain = for {
-      page <- EitherT(Sync[F].pure(page.map(s => Try(Integer.parseInt(s)).toEither).sequence.leftMap(HttpClientError(_))))
+      page <- EitherT(Sync[F].pure(page.map(s => Try(Integer.parseInt(s)).toEither).sequence.leftMap(new IllegalArgumentException("Page count could not be parsed", _))))
       result <- EitherT(rateLimiter.submit(
         SimpleHttpClient
           .call[F, Json, Json](
@@ -62,8 +62,8 @@ class ColaventHqDataProvider[F[_] : Sync](
             conversion = json => json,
           )
       ))
-      events <- EitherT(Sync[F].pure(Right(getTransactionEventsFromResult(result, Option(address))).asInstanceOf[Either[HttpClientErrorTrait, List[Json]]]))
-      nextPage <- EitherT(Sync[F].pure(Right(getNextPageFromResult(result)).asInstanceOf[Either[HttpClientErrorTrait, Option[Int]]]))
+      events <- EitherT(Sync[F].pure(Right(getTransactionEventsFromResult(result, Option(address))).asInstanceOf[Either[Throwable, List[Json]]]))
+      nextPage <- EitherT(Sync[F].pure(Right(getNextPageFromResult(result)).asInstanceOf[Either[Throwable, Option[Int]]]))
     } yield TransactionEventsResult(
       events = events,
       nextPage = nextPage,
@@ -153,7 +153,7 @@ object ColaventHqDataProvider {
                 Json.Null
               }
             case Some(eventType) =>
-//              //              println(s"Unknown eventType=$eventType")
+              //              //              println(s"Unknown eventType=$eventType")
               Json.Null
             //            case Some("Approval") =>
             //            case Some("OrdersMatched") => Json.Null

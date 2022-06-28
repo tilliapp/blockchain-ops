@@ -20,12 +20,17 @@ val sharedSettings: Seq[Def.Setting[_]] = Seq(
   test in assembly := {},
   assemblyMergeStrategy in assembly := {
     case PathList("META-INF", "maven", "org.webjars", "swagger-ui", "pom.properties") => MergeStrategy.singleOrError
-    case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+    case PathList("META-INF", xs@_*) => MergeStrategy.discard
     case x => MergeStrategy.first
   }
 )
 
-lazy val root = project in file(".")
+lazy val root = (project in file("."))
+  .aggregate(
+    shared,
+    blockchainReader,
+    blockchainSink,
+  )
 
 lazy val shared = (project in file("shared"))
   .settings(

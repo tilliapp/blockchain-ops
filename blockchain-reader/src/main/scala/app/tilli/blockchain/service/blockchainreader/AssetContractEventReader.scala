@@ -63,7 +63,7 @@ object AssetContractEventReader extends StreamTrait {
     source: AssetContractEventSource[F],
     record: ConsumerRecord[String, TilliJsonEvent],
     rateLimiter: Limiter[F],
-  ): F[Either[HttpClientErrorTrait, AssetContractEventsResult]] = {
+  ): F[Either[Throwable, AssetContractEventsResult]] = {
     source.getAssetContractAddress(record.value) match {
       case Right(assetContractAddress) =>
         //        Sync[F].delay(println(s"Processing record: $record")) *>

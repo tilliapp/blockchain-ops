@@ -1,7 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractTypeSource, HttpClientErrorTrait}
+import app.tilli.blockchain.codec.BlockchainClasses.AssetContractTypeSource
 import app.tilli.blockchain.codec.BlockchainConfig.AddressType
 import cats.effect.Concurrent
 import cats.effect.kernel.Sync
@@ -27,7 +27,7 @@ class EtherscanDataProvider[F[_] : Sync](
   override def getAssetContractType(
     assetContractAddress: String,
     rateLimiter: Limiter[F],
-  ): F[Either[HttpClientErrorTrait, Option[AddressType.Value]]] = {
+  ): F[Either[Throwable, Option[AddressType.Value]]] = {
     val path = "api"
     val queryParams = Map(
       "module" -> "contract",
