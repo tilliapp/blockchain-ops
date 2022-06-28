@@ -11,7 +11,7 @@ class OpenSeaApiSpec extends BaseSpec {
     "decode events" in {
       val Right(json) = io.circe.parser.parse(OpenSeaApiSpec.apiResult)
       val results = OpenSeaApi.assetContractEventsFromResult(json)
-      println(results)
+
       val Right(expectedResultJson) = io.circe.parser.parse(expectedResult)
       val Right(expectedResult2Json) = io.circe.parser.parse(expectedResult2)
 

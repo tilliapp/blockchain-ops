@@ -19,7 +19,7 @@ class ColaventHqDataProviderSpec extends BaseSpec {
       val Right(expectedResultJson) = io.circe.parser.parse(expectedResult)
 
       val result = ColaventHqDataProvider.getTransactionEventsFromResult(json)
-      println(result)
+
       result mustBe List(expectedResultJson)
     }
 
