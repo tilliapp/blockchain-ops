@@ -57,6 +57,7 @@ class ColaventHqDataProvider[F[_] : Sync](
             queryParams = Map(
               "key" -> apiKey,
               "page-size" -> "30",
+              "block-signed-at-asc" -> "true", // use this to ensure that data is returned chronologically asc
             ) ++ page.map(p => Map[String, String]("page-number" -> s"$p")).getOrElse(Map.empty[String, String]),
             headers = headers,
             conversion = json => json,
@@ -85,6 +86,10 @@ object ColaventHqDataProvider {
     }
   }
 
+  def tsToEpochMilli(ts: Option[String]) : Option[Long] =
+    ts.map(ts => if (!ts.toLowerCase.endsWith("z")) s"${ts}Z" else ts)
+      .flatMap(ts => Try(Instant.parse(ts)).toOption).map(_.toEpochMilli)
+
   def getTransactionEventsFromResult(
     data: Json,
     filterLogsAddress: Option[String] = None,
@@ -99,9 +104,6 @@ object ColaventHqDataProvider {
       val transactionHash = root.txHash.string.getOption(eventJson)
       val transactionOffset = root.txOffset.int.getOption(eventJson).map(Json.fromInt)
       val totalPrice = root.value.string.getOption(eventJson).map(Json.fromString)
-      val transactionTime = root.blockSignedAt.string.getOption(eventJson)
-        .map(ts => if (!ts.toLowerCase.endsWith("z")) s"${ts}Z" else ts)
-        .flatMap(ts => Try(Instant.parse(ts)).toOption).map(_.toEpochMilli).map(Json.fromLong)
       val quantity = Some(Json.fromInt(1)) // TODO: Is this a fair assumption? We don't have any quantity counts in covalent
 
       val logs = root.logEvents.each.json.getAll(eventJson)
@@ -114,6 +116,8 @@ object ColaventHqDataProvider {
 
               if (filterLogsAddress.isEmpty || from.flatMap(_.asString).contains(filterLogsAddress.get) || to.flatMap(_.asString).contains(filterLogsAddress.get)) {
                 val eventType = Option(Json.fromString(EventType.transfer.toString))
+                val transactionTime = tsToEpochMilli(root.blockSignedAt.string.getOption(logEvent)).map(Json.fromLong)
+                val blockHeight = root.blockHeight.int.getOption(logEvent).map(Json.fromInt)
                 val logOffset = root.logOffset.int.getOption(logEvent).map(Json.fromInt)
                 val assetContractAddress = root.senderAddress.string.getOption(logEvent).map(Json.fromString)
                 val assetContractName = root.senderName.string.getOption(logEvent).map(Json.fromString)
@@ -138,6 +142,7 @@ object ColaventHqDataProvider {
                     "totalPrice" -> totalPrice,
                     "quantity" -> quantity,
                     "transactionTime" -> transactionTime,
+                    "blockHeight" -> blockHeight,
                     "eventType" -> eventType,
                     "logOffset" -> logOffset,
                     "fromAddress" -> from,
