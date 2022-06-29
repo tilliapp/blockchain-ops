@@ -67,14 +67,11 @@ object TransactionEventReader extends StreamTrait {
     record: ConsumerRecord[String, TilliJsonEvent],
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, TransactionEventsResult]] = {
-    val address = root.address.string.getOption(record.value.data).toRight(new IllegalStateException(s"No toAddress was found for record tracking id ${record.value.header.trackingId}")).asInstanceOf[Either[Throwable, String]]
-    val blockChain = root.chain.string.getOption(record.value.data).toRight(new IllegalStateException(s"No chain information was found for record tracking id ${record.value.header.trackingId}")).asInstanceOf[Either[Throwable, String]]
-    val nextPage = root.nextPage.string.getOption(record.value.data)
     val chain = for {
-      bc <- EitherT(Sync[F].pure(blockChain))
-      address <- EitherT(Sync[F].pure(address))
-      toAddressResult <- EitherT(source.getTransactionEvents(address, bc, nextPage, rateLimiter).asInstanceOf[F[Either[Throwable, TransactionEventsResult]]])
-    } yield toAddressResult
+      addressRequest <- EitherT(Sync[F].pure(record.value.data.as[AddressRequest]))
+      bc <- EitherT(Sync[F].pure(addressRequest.chain.toRight(new IllegalStateException(s"No chain information was found for record tracking id ${record.value.header.trackingId}")).asInstanceOf[Either[Throwable, String]]))
+      transactionResult <- EitherT(source.getTransactionEvents(addressRequest.address, bc, addressRequest.nextPage, rateLimiter).asInstanceOf[F[Either[Throwable, TransactionEventsResult]]])
+    } yield transactionResult
     chain.value
   }
 
@@ -125,13 +122,14 @@ object TransactionEventReader extends StreamTrait {
         address = address,
         chain = chain,
         nextPage = Some(np.toString),
+        dataProvider = Some(DataProvider(dataProvider))
       )
       val tilliJsonEvent = TilliJsonEvent(
         BlockchainClasses.Header(
           trackingId = trackingId,
           eventTimestamp = Instant.now().toEpochMilli,
           eventId = UUID.randomUUID(),
-          origin = record.value.header.origin ++ List(
+          origin = List(
             Origin(
               source = Some(dataProvider.source),
               provider = Some(dataProvider.provider),
@@ -181,7 +179,7 @@ object TransactionEventReader extends StreamTrait {
     offset: CommittableOffset[F],
     inputTopic: InputTopic,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    val Right(request) = record.value.data.as[AssetContractHolderRequest]
+    val Right(request) = record.value.data.as[AddressRequest]
     val newAssetContractHolderRequest = request.copy(attempt = request.attempt + 1)
     val newRequestTilliJsonEvent = record.value.copy(
       header = record.value.header.copy(

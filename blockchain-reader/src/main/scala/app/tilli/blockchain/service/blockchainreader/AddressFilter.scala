@@ -3,18 +3,20 @@ package app.tilli.blockchain.service.blockchainreader
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
-import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAddressRequest, DataTypeToVersion}
+import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAddressRequest, DataTypeToVersion, dataProviderCovalentHq}
 import app.tilli.blockchain.service.StreamTrait
-import app.tilli.logging.Logging
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
 import app.tilli.utils.{InputTopic, OutputTopic}
+import cats.MonadThrow
 import cats.data.EitherT
 import cats.effect.{Async, Sync}
 import fs2.kafka._
 import io.chrisdavenport.mules.Cache
-import io.circe.Json
+import io.circe.{Decoder, Json}
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
+import mongo4cats.collection.MongoCollection
+import mongo4cats.collection.operations.{Filter, Projection}
 import upperbound.Limiter
 
 import java.time.Instant
@@ -39,6 +41,7 @@ object AddressFilter extends StreamTrait {
     val inputTopic = r.appConfig.inputTopicAddressContractEvent
     val outputTopic = r.appConfig.outputTopicAddressRequest
     val outputTopicFailure = r.appConfig.outputTopicFailureEvent
+    implicit val F = MonadThrow[F]
 
     import fs2.kafka._
     val stream =
@@ -52,7 +55,7 @@ object AddressFilter extends StreamTrait {
             .map { partitionStream =>
               partitionStream.evalMap { committable =>
                 import cats.implicits._
-                filter(committable.record, r.addressCache, r.assetContractTypeSource, r.etherscanRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, List[AddressRequest]]]]
+                filter(committable.record, r.addressTypeCache, r.addressRequestCache, r.dataProviderCursorCache, r.assetContractTypeSource, dataProviderCovalentHq, r.dataProviderCursorCollection, r.etherscanRateLimiter).asInstanceOf[F[Either[Throwable, List[AddressRequest]]]]
                   .map {
                     case Right(res) => toProducerRecords(committable.record, committable.offset, res, outputTopic)
                     case Left(err) => handleDataProviderError(committable, err, inputTopic, outputTopicFailure, r.transactionEventSource)
@@ -68,8 +71,12 @@ object AddressFilter extends StreamTrait {
 
   def filter[F[_] : Sync : Async](
     record: ConsumerRecord[String, TilliJsonEvent],
-    cache: Cache[F, String, AddressSimple],
+    addressTypeCache: Cache[F, String, AddressSimple],
+    addressRequestCache: Cache[F, String, AddressRequest],
+    dataProviderCursorCache: Cache[F, String, DataProviderCursor],
     assetContractTypeSource: AssetContractTypeSource[F],
+    dataProvider: DataProvider,
+    dataProviderCursorCollection: MongoCollection[F, Json],
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, List[AddressRequest]]] = {
     val blockChain = root.chain.string.getOption(record.value.data)
@@ -84,8 +91,22 @@ object AddressFilter extends StreamTrait {
       .filterNot(_ == "0x0000000000000000000000000000000000000000") // Remove null address
       .map(a =>
         EitherT(
-          checkAndInsertIntoCache(a, cache, assetContractTypeSource, rateLimiter)
-            .map(e => e.map(res => res.map(r => AddressRequest(r, blockChain))))
+          checkAndInsertIntoCache(
+            a,
+            addressTypeCache,
+            addressRequestCache,
+            dataProviderCursorCache,
+            assetContractTypeSource,
+            dataProvider,
+            dataProviderCursorCollection,
+            rateLimiter,
+          )
+            .map(e => e.map(res => res.map(dpc => AddressRequest(
+              dpc.address,
+              blockChain,
+              dataProvider = Some(dataProvider),
+              nextPage = dpc.cursor,
+            ))))
         )
       ).sequence
       .map(r => r.flatten)
@@ -93,37 +114,145 @@ object AddressFilter extends StreamTrait {
     temp
   }
 
+  // Algo for address transaction pull:
+  // 1. look up to check if address is a contract. If it is, then remove. This should eventually be our own cache but for now ask etherscan
+  // 2. check if we just emitted a request, if we did, then remove (use 1 hour as the deduper)
+  // 3. If it's not a contract and we have not just emitted a request, then submit the latest cursor.
+
+  // TODO: Have the caches upsert to mongo on misses. Store the lookup even if no data returned and let the result age out.
+  //  Only risk is that an insert into mongo wiht a cursor means that we have that data. That may not be true
+  //  But we could upsert into a temporary cache so as to not rely on in memory cache only.
+
   def checkAndInsertIntoCache[F[_] : Sync](
     a: String,
-    cache: Cache[F, String, AddressSimple],
+    addressTypeCache: Cache[F, String, AddressSimple],
+    addressRequestCache: Cache[F, String, AddressRequest],
+    dataProviderCursorCache: Cache[F, String, DataProviderCursor],
+    assetContractTypeSource: AssetContractTypeSource[F],
+    dataProvider: DataProvider,
+    dataProviderCursorCollection: MongoCollection[F, Json],
+    rateLimiter: Limiter[F],
+  )(implicit
+    F: MonadThrow[F],
+  ): F[Either[Throwable, Option[DataProviderCursor]]] = {
+    import cats.implicits._
+    addressRequestCache
+      .lookup(a)
+      .flatMap {
+        case None => // we have not emitted any requests at all
+          getAddressType(addressTypeCache, assetContractTypeSource, rateLimiter, a) // Later replace with call to mongo and then etherscan if no mongo
+            .flatMap {
+              case Right(adt) => // if the address type is contract then skip
+                if (adt.isContract.contains(false))
+                  checkAndInsertDataProviderCursor(adt, dataProvider, dataProviderCursorCache, dataProviderCursorCollection)
+                    .map(_.map(Some(_)))
+                else F.pure(Right(None))
+              case Left(err) => F.pure(Left(err))
+            }
+
+        case Some(_) => // We have already requested so don't request again
+          F.pure(Right(None)) // Prev requests will age out and we can then call again
+      }
+  }
+
+  def checkAndInsertDataProviderCursor[F[_]](
+    adt: AddressSimple,
+    dataProvider: DataProvider,
+    dataProviderCursorCache: Cache[F, String, DataProviderCursor],
+    dataProviderCursorCollection: MongoCollection[F, Json],
+  )(implicit
+    F: MonadThrow[F],
+  ): F[Either[Throwable, DataProviderCursor]] = {
+    import cats.implicits._
+    val key = DataProviderCursor.key(adt.address, dataProvider)
+    dataProviderCursorCache
+      .lookup(key)
+      .flatMap {
+        case None =>
+          getDataProviderCursor(adt.address, dataProviderCursorCollection, dataProvider)
+            .flatMap {
+              case Right(dpcOpt) =>
+                val dpc = dpcOpt.map(_.data).getOrElse(
+                  DataProviderCursor(
+                    dataProvider = dataProvider,
+                    address = adt.address,
+                    cursor = None,
+                    query = None,
+                  )
+                )
+                dataProviderCursorCache.insert(key, dpc) *> F.pure(Right(dpc))
+              case Left(err) => F.pure(Left(err))
+            }
+        case Some(cursor) => {
+          F.pure(log.info(s"Starting address ${adt.address} at cursor=${cursor.cursor}")) *>
+            F.pure(Right(cursor))
+        }
+      }
+  }
+
+  def getAddressType[F[_]](
+    addressTypeCache: Cache[F, String, AddressSimple],
     assetContractTypeSource: AssetContractTypeSource[F],
     rateLimiter: Limiter[F],
-  ): F[Either[Throwable, Option[String]]] = {
+    a: String
+  )(implicit
+    F: MonadThrow[F],
+  ): F[Either[Throwable, AddressSimple]] = {
     import cats.implicits._
-    cache
+    addressTypeCache
       .lookup(a)
       .flatMap {
         case None =>
-          assetContractTypeSource.getAssetContractType(a, rateLimiter)
+          assetContractTypeSource
+            .getAssetContractType(a, rateLimiter)
             .flatMap {
               case Right(addressType) =>
                 val as = AddressSimple(
                   address = a,
                   isContract = addressType.map(_ == AddressType.contract),
                 )
-                cache.insert(a, as) *>
-                  Sync[F].pure(Right(
-                    if (as.isContract.contains(true)) None
-                    else Option(a)
-                  ))
-              case Left(err) =>
-                Sync[F].pure(Left(
-                  err
-                ).asInstanceOf[Either[HttpClientErrorTrait, Option[String]]])
+                addressTypeCache.insert(a, as) *> F.pure(Right(as))
+              case Left(err) => F.pure(Left(err))
             }
+        case Some(adt) => F.pure(Right(adt))
+      }
+  }
 
-        case Some(_) =>
-          Sync[F].pure(Right(None).asInstanceOf[Either[HttpClientErrorTrait, Option[String]]])
+  def getDataProviderCursor[F[_]](
+    address: String,
+    dataProviderCursorCollection: MongoCollection[F, Json],
+    dataProvider: DataProvider,
+  )(implicit
+    F: MonadThrow[F],
+  ): F[Either[Throwable, Option[DataProviderCursorRecord]]] = {
+    import cats.implicits._
+    val key = DataProviderCursor.key(address, dataProvider)
+    dataProviderCursorCollection
+      .find
+      .filter(Filter.eq("data.key", key))
+      .all
+      .attempt
+      .map(_.flatMap { data =>
+        if (data.size > 1) Left(new IllegalStateException(s"More than one cursor was found for address $address for dataProvider $dataProvider: ${data.size}"))
+        else Right(
+          data.headOption
+            .flatMap(j => root.data.json.getOption(j).map(_.as[DataProviderCursorRecord]))
+        )
+      })
+      .flatMap {
+        case Right(result) =>
+          F.pure(
+            result
+              .map(_.leftMap(err => new IllegalStateException(s"Could not deserialize DataProviderCursorRecord for key $key", err)))
+              .sequence
+            //          result match {
+            //            case Some(r) => r
+            //              .leftMap(err => new IllegalStateException(s"Could not deserialize DataProviderCursorRecord for key $key", err))
+            //              .map(Some(_))
+            //            case None => Right(None) // no cursor for this key
+            //          }
+          )
+        case Left(err) => F.pure(Left(err))
       }
   }
 

@@ -1,5 +1,6 @@
 package app.tilli.blockchain.codec
 
+import app.tilli.blockchain.codec.BlockchainClasses.DataProviderCursor
 import app.tilli.blockchain.codec.BlockchainConfig.AddressType
 import io.circe.Json
 import upperbound.Limiter
@@ -74,6 +75,17 @@ object BlockchainClasses {
     override val name: Option[String]
   ) extends DataProviderTrait
 
+  object DataProvider {
+
+    def apply(dataProvider: DataProviderTrait): DataProvider =
+      new DataProvider(
+        source = dataProvider.source,
+        provider = dataProvider.provider,
+        name = dataProvider.name,
+      )
+
+  }
+
   case class Origin(
     source: Option[UUID],
     provider: Option[UUID],
@@ -130,12 +142,22 @@ object BlockchainClasses {
   }
 
   case class DataProviderCursor(
-    dataProvider: Option[DataProvider],
-    address: Option[String],
+    dataProvider: DataProvider,
+    address: String,
     cursor: Option[String],
     query: Option[String],
     createdAt: Option[Long] = Option(Instant.now.toEpochMilli),
   )
+
+  object DataProviderCursor {
+
+    def key(dataProviderCursor: DataProviderCursor): String =
+      key(dataProviderCursor.address, dataProviderCursor.dataProvider)
+
+    def key(address: String, dataProvider: DataProvider): String =
+      s"$address|${dataProvider.source}|${dataProvider.provider}"
+
+  }
 
   case class TransactionEventsResult(
     events: List[Json],
@@ -164,6 +186,7 @@ object BlockchainClasses {
   case class AddressRequest(
     address: String,
     chain: Option[String],
+    dataProvider: Option[DataProvider],
     nextPage: Option[String] = None,
     attempt: Int = 1,
   )
@@ -200,6 +223,20 @@ object BlockchainClasses {
     key: Option[String],
     data: TransactionRecordData,
   )
+
+  case class DataProviderCursorRecord(
+    key: String,
+    data: DataProviderCursor,
+  )
+
+  object DataProviderCursorRecord {
+
+    def apply(dataProviderCursor: DataProviderCursor): DataProviderCursorRecord =
+      DataProviderCursorRecord(
+        key = DataProviderCursor.key(dataProviderCursor),
+        data = dataProviderCursor,
+      )
+  }
 
   case class TilliDataProviderError(
     originalEvent: Option[TilliJsonEvent],

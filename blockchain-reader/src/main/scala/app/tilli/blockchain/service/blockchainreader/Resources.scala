@@ -4,6 +4,8 @@ import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.service.blockchainreader.config.AppConfig
 import cats.effect.IO
 import io.chrisdavenport.mules.Cache
+import io.circe.Json
+import mongo4cats.collection.MongoCollection
 import org.http4s.client.Client
 import upperbound.Limiter
 
@@ -19,5 +21,8 @@ case class Resources(
   assetContractEventSource: AssetContractEventSource[IO],
   transactionEventSource: TransactionEventSource[IO],
   assetContractTypeSource: AssetContractTypeSource[IO],
-  addressCache: Cache[IO, String, AddressSimple]
+  addressTypeCache: Cache[IO, String, AddressSimple],
+  addressRequestCache: Cache[IO, String, AddressRequest],
+  dataProviderCursorCache: Cache[IO, String, DataProviderCursor],
+  dataProviderCursorCollection: MongoCollection[IO, Json],
 )

@@ -2,7 +2,7 @@ package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, DataProviderCursor, TransactionEventSource, TransactionEventsResult}
-import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, PaymentTokenDecimalsMap, chainPaymentTokenMap}
+import app.tilli.blockchain.codec.BlockchainConfig._
 import app.tilli.blockchain.dataprovider.ColaventHqDataProvider._
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
@@ -15,16 +15,12 @@ import upperbound.Limiter
 
 import java.math.BigInteger
 import java.time.Instant
-import java.util.UUID
 import scala.util.Try
 
 class ColaventHqDataProvider[F[_] : Sync](
   val httpClient: Client[F],
   override val concurrent: Concurrent[F],
-  override val source: UUID = UUID.fromString("5f4a7bfa-482d-445d-9bda-e83937581026"),
-  override val provider: UUID = UUID.fromString("0977c146-f3c5-43c5-a33b-e376eb73ba0b"),
-  override val name: Option[String] = Some("Covalent HQ API"),
-) extends DataProvider(source, provider, name)
+) extends DataProvider(dataProviderCovalentHq.source, dataProviderCovalentHq.provider, dataProviderCovalentHq.name)
   with ApiProvider[F]
   with TransactionEventSource[F] {
 
@@ -48,14 +44,14 @@ class ColaventHqDataProvider[F[_] : Sync](
   ): F[Either[Throwable, TransactionEventsResult]] = {
     val covalentChain = chainMap(Chain.withName(chainId))
     val path = s"v1/$covalentChain/address/$address/transactions_v2/"
+    val pageNumber = page.getOrElse("0")
     val queryParams = Map(
       "key" -> apiKey,
-      "page-size" -> "30",
+      "page-size" -> "100",
       "block-signed-at-asc" -> "true", // use this to ensure that data is returned chronologically asc
-    ) ++ page.map(p => Map[String, String]("page-number" -> s"$p")).getOrElse(Map.empty[String, String])
-    import cats.implicits._
+      "page-number" -> pageNumber,
+    )
     val chain = for {
-      page <- EitherT(Sync[F].pure(page.map(s => Try(Integer.parseInt(s)).toEither).sequence.leftMap(new IllegalArgumentException("Page count could not be parsed", _))))
       result <- EitherT(rateLimiter.submit(
         SimpleHttpClient
           .call[F, Json, Json](
@@ -73,7 +69,7 @@ class ColaventHqDataProvider[F[_] : Sync](
         getDataProviderCursor(
           address = address,
           dataProvider = this,
-          currentPage = page.map(_.toString),
+          currentPage = Option(pageNumber),
           query = SimpleHttpClient.toUri(host, path, queryParams).toOption.map(_.renderString),
         )
       TransactionEventsResult(
@@ -107,8 +103,8 @@ object ColaventHqDataProvider {
   ): Option[DataProviderCursor] =
     Some(
       DataProviderCursor(
-        dataProvider = Some(dataProvider),
-        address = Option(address),
+        dataProvider = dataProvider,
+        address = address,
         cursor = currentPage,
         query = query,
         createdAt = Option(Instant.now.toEpochMilli),
