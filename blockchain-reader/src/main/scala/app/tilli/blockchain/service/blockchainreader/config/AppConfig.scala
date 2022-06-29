@@ -20,6 +20,11 @@ case class RateLimitConfig(
   override val maxQueued: Int,
 ) extends RateLimitedResource
 
+case class MongoDbConfig(
+  url: String,
+  db: String,
+)
+
 case class AppConfig(
   environment: String,
   httpServerPort: Int,
@@ -42,12 +47,14 @@ case class AppConfig(
 
   outputTopicFailureEvent: OutputTopic,
 
-  inputTopicDataProviderCursorEvent: InputTopic,
   outputTopicDataProviderCursorEvent: OutputTopic,
 
   rateLimitOpenSea: RateLimitConfig,
   rateLimitCovalentHq: RateLimitConfig,
   rateLimitEtherscan: RateLimitConfig,
+
+  mongoDbConfig: MongoDbConfig,
+  mongoDbCollectionDataProviderCursor: String,
 )
 
 object AppConfig {
@@ -58,6 +65,7 @@ object AppConfig {
   implicit val readerOutputTopic: ConfigReader[OutputTopic] = deriveReader[OutputTopic]
   implicit val readerKafkaProducerConfiguration: ConfigReader[KafkaProducerConfiguration] = deriveReader[KafkaProducerConfiguration]
   implicit val readerKafkaConsumerConfiguration: ConfigReader[KafkaConsumerConfiguration] = deriveReader[KafkaConsumerConfiguration]
+  implicit val readerMongoDbConfig: ConfigReader[MongoDbConfig] = deriveReader[MongoDbConfig]
   implicit val readerAppConfig: ConfigReader[AppConfig] = deriveReader[AppConfig]
 
 }

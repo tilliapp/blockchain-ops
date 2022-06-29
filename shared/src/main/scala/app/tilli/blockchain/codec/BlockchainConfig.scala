@@ -1,5 +1,9 @@
 package app.tilli.blockchain.codec
 
+import app.tilli.blockchain.codec.BlockchainClasses.DataProvider
+
+import java.util.UUID
+
 object BlockchainConfig {
 
   val DataTypeAssetContract = "AssetContract"
@@ -19,6 +23,12 @@ object BlockchainConfig {
     DataTypeTransactionEvent -> Version_20220617,
     DataTypeDataProviderError -> Version_20220617,
     DataTypeDataProviderCursor -> Version_20220617,
+  )
+
+  val dataProviderCovalentHq = new DataProvider(
+    source = UUID.fromString("5f4a7bfa-482d-445d-9bda-e83937581026"),
+    provider = UUID.fromString("0977c146-f3c5-43c5-a33b-e376eb73ba0b"),
+    name = Some("Covalent HQ API"),
   )
 
   val VersionToDataType = DataTypeToVersion.map(t => t._2 -> t._1)

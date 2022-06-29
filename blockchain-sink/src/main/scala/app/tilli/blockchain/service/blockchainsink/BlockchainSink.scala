@@ -190,17 +190,17 @@ object BlockchainSink extends Logging {
   ): F[Either[Throwable, Boolean]] = {
     import cats.implicits._
     import mongo4cats.collection.operations._
-
-    val commands = data.map(t =>
-      WriteCommand.UpdateOne(
-        filter =
-          Filter.eq("data.address", t.address.get)
-            .and(Filter.lt("data.createdAt", t.createdAt.getOrElse(Long.MinValue)))
-        ,
-        update = Update.set("data", t),
-        options = UpdateOptions().upsert(true),
+    val commands = data
+      .map(DataProviderCursorRecord(_))
+      .map(cursor =>
+        WriteCommand.UpdateOne(
+          filter =
+            Filter.eq("data.key", cursor.key).and(
+              Filter.lt("data.data.createdAt", cursor.data.createdAt.getOrElse(Long.MinValue))),
+          update = Update.set("data", cursor),
+          options = UpdateOptions().upsert(true),
+        )
       )
-    )
     resources.dataProviderCursorCollection
       .bulkWrite(commands,
         BulkWriteOptions()
