@@ -1,6 +1,6 @@
 package app.tilli.blockchain.service.blockchainsink
 
-import app.tilli.blockchain.codec.BlockchainClasses.TransactionRecord
+import app.tilli.blockchain.codec.BlockchainClasses.{DataProviderCursor, TransactionRecord}
 import app.tilli.blockchain.service.blockchainsink.config.AppConfig
 import mongo4cats.client.MongoClient
 import mongo4cats.collection.MongoCollection
@@ -13,4 +13,5 @@ case class Resources[F[_]](
   mongoClient: MongoClient[F],
   mongoDatabase: MongoDatabase[F],
   transactionCollection: MongoCollection[F, TransactionRecord],
+  dataProviderCursorCollection: MongoCollection[F, DataProviderCursor],
 )

@@ -1,7 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, DataProviderCursor, DataProviderTrait, TransactionEventSource, TransactionEventsResult}
+import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, DataProviderCursor, TransactionEventSource, TransactionEventsResult}
 import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, PaymentTokenDecimalsMap, chainPaymentTokenMap}
 import app.tilli.blockchain.dataprovider.ColaventHqDataProvider._
 import cats.data.EitherT
@@ -111,6 +111,7 @@ object ColaventHqDataProvider {
         address = Option(address),
         cursor = currentPage,
         query = query,
+        createdAt = Option(Instant.now.toEpochMilli),
       )
     )
 
