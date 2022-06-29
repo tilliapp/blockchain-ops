@@ -15,6 +15,12 @@ import java.util.UUID
 
 object SimpleHttpClient extends Logging {
 
+  def toUri(
+    host: String,
+    path: String,
+    queryParams: Map[String, String],
+  ): Either[Throwable, Uri] = Uri.fromString(s"$host/$path").map(_.withQueryParams(queryParams))
+
   def call[F[_] : Sync, A, B](
     host: String,
     path: String,
@@ -26,8 +32,7 @@ object SimpleHttpClient extends Logging {
     entityDecoder: EntityDecoder[F, String],
     decoder: Decoder[A],
   ): F[Either[Throwable, B]] = {
-    val Right(baseUri) = Uri.fromString(s"$host/$path")
-    val uri = baseUri.withQueryParams(queryParams)
+    val Right(uri) = toUri(host, path, queryParams)
 
     val call = {
       if (headers.isEmpty) client.expectOr[String](uri) _
@@ -37,17 +42,16 @@ object SimpleHttpClient extends Logging {
     call { err =>
       err.body.compile.toList.map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
         .flatMap(errorMessage =>
-//          Sync[F].delay(log.error(s"Error while calling endpoint ${uri.renderString}: ${err.toString()}: $errorMessage")) *>
-            Sync[F].pure(
-              HttpClientError(
-                message = s"Error while calling endpoint: $errorMessage",
-                detail = Option(err.toString()).filter(s => s != null && s.nonEmpty),
-                code = Option(err.status.code),
-                reason = Option(err.status.reason).filter(s => s != null && s.nonEmpty),
-                headers = Option(err.headers.toString),
-                url = Option(uri.renderString).filter(s => s != null && s.nonEmpty)
-              )
+          Sync[F].pure(
+            HttpClientError(
+              message = s"Error while calling endpoint: $errorMessage",
+              detail = Option(err.toString()).filter(s => s != null && s.nonEmpty),
+              code = Option(err.status.code),
+              reason = Option(err.status.reason).filter(s => s != null && s.nonEmpty),
+              headers = Option(err.headers.toString),
+              url = Option(uri.renderString).filter(s => s != null && s.nonEmpty)
             )
+          )
         )
     }.attempt
       .map(_

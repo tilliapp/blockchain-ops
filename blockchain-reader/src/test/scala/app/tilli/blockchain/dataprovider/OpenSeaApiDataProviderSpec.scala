@@ -1,16 +1,16 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.BaseSpec
-import app.tilli.blockchain.dataprovider.OpenSeaApiSpec._
+import app.tilli.blockchain.dataprovider.OpenSeaApiDataProviderSpec._
 import app.tilli.serializer.KeyConverter
 
-class OpenSeaApiSpec extends BaseSpec {
+class OpenSeaApiDataProviderSpec extends BaseSpec {
 
   "OpenSeaApi" must {
 
     "decode events" in {
-      val Right(json) = io.circe.parser.parse(OpenSeaApiSpec.apiResult)
-      val results = OpenSeaApi.assetContractEventsFromResult(json)
+      val Right(json) = io.circe.parser.parse(OpenSeaApiDataProviderSpec.apiResult)
+      val results = OpenSeaApiDataProvider.assetContractEventsFromResult(json)
 
       val Right(expectedResultJson) = io.circe.parser.parse(expectedResult)
       val Right(expectedResult2Json) = io.circe.parser.parse(expectedResult2)
@@ -24,7 +24,7 @@ class OpenSeaApiSpec extends BaseSpec {
 }
 
 
-object OpenSeaApiSpec {
+object OpenSeaApiDataProviderSpec {
 
   val transfer =
     """

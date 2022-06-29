@@ -78,7 +78,7 @@ object AssetContractReader extends StreamTrait {
     result: Json,
     assetContractTopic: OutputTopic,
     assetContractEventRequestTopic: OutputTopic,
-    dataProvider: DataProvider,
+    dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val trackingId = record.record.value.header.trackingId
     val key = root.address.string.getOption(result).orNull
@@ -88,7 +88,7 @@ object AssetContractReader extends StreamTrait {
         trackingId = trackingId,
         eventTimestamp = Instant.now().toEpochMilli,
         eventId = UUID.randomUUID(),
-        origin = List(
+        origin = record.record.value.header.origin ++ List(
           Origin(
             source = Some(dataProvider.source),
             provider = Some(dataProvider.provider),

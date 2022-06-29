@@ -3,7 +3,7 @@ package app.tilli.blockchain.service.blockchainreader
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
-import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAssetContractEvent, DataTypeToVersion, DataTypeTransactionEvent}
+import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAssetContractEvent, DataTypeDataProviderCursor, DataTypeToVersion, DataTypeTransactionEvent}
 import app.tilli.blockchain.service.StreamTrait
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
 import app.tilli.utils.{InputTopic, OutputTopic}
@@ -32,8 +32,9 @@ object TransactionEventReader extends StreamTrait {
     val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
     val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig, r.sslConfig)
     val inputTopic = r.appConfig.inputTopicTransactionEventRequest
-    val outputTopic = r.appConfig.outputTopicTransactionEvent
+    val outputTopicTransaction = r.appConfig.outputTopicTransactionEvent
     val outputTopicFailure = r.appConfig.outputTopicFailureEvent
+    val outputTopicCursorEvent = r.appConfig.outputTopicDataProviderCursorEvent
 
     import cats.implicits._
     import fs2.kafka._
@@ -49,7 +50,7 @@ object TransactionEventReader extends StreamTrait {
               partitionStream.evalMap { committable =>
                 processRecord(r.transactionEventSource, committable.record, r.covalentHqRateLimiter).asInstanceOf[F[Either[Throwable, TransactionEventsResult]]]
                   .map {
-                    case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, r.transactionEventSource)
+                    case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopicTransaction, outputTopicCursorEvent, inputTopic, r.transactionEventSource)
                     case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.transactionEventSource)
                   }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
               }
@@ -81,13 +82,15 @@ object TransactionEventReader extends StreamTrait {
     record: ConsumerRecord[String, TilliJsonEvent],
     offset: CommittableOffset[F],
     transactionEventsResults: TransactionEventsResult,
-    outputTopic: OutputTopic,
+    outputTopicTransaction: OutputTopic,
+    outputTopicCursorEvent: OutputTopic,
     inputTopic: InputTopic,
-    dataProvider: DataProvider,
+    dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val sourcedTime = Instant.now.toEpochMilli
     val trackingId = record.value.header.trackingId
-    val transactionalProducerRecords = transactionEventsResults.events
+    val transactionalProducerRecords = transactionEventsResults
+      .events
       .filterNot(_.isNull)
       .map(eventJson => {
         val tilliJsonEvent = TilliJsonEvent(
@@ -95,7 +98,7 @@ object TransactionEventReader extends StreamTrait {
             trackingId = trackingId,
             eventTimestamp = sourcedTime,
             eventId = UUID.randomUUID(),
-            origin = record.value.header.origin ++ List(
+            origin = List(
               Origin(
                 source = Some(dataProvider.source),
                 provider = Some(dataProvider.provider),
@@ -110,7 +113,7 @@ object TransactionEventReader extends StreamTrait {
 
         val transactionHash = root.transactionHash.string.getOption(eventJson)
         val key = transactionHash.getOrElse(eventJson.toString.hashCode.toString) // TODO: Align on the hashcode
-        ProducerRecord(outputTopic.name, key, tilliJsonEvent)
+        ProducerRecord(outputTopicTransaction.name, key, tilliJsonEvent)
       })
 
     val nextPageProducerRecord = for {
@@ -143,8 +146,32 @@ object TransactionEventReader extends StreamTrait {
       ProducerRecord(inputTopic.name, address, tilliJsonEvent)
     }
 
+    val cursorRecord = for {
+      cursor <- transactionEventsResults.dataProviderCursor
+      address <- root.address.string.getOption(record.value.data)
+    } yield {
+      val tilliJsonEvent = TilliJsonEvent(
+        BlockchainClasses.Header(
+          trackingId = trackingId,
+          eventTimestamp = Instant.now().toEpochMilli,
+          eventId = UUID.randomUUID(),
+          origin = List(
+            Origin(
+              source = Some(dataProvider.source),
+              provider = Some(dataProvider.provider),
+              sourcedTimestamp = sourcedTime,
+            )
+          ),
+          dataType = Some(DataTypeDataProviderCursor),
+          version = DataTypeToVersion.get(DataTypeDataProviderCursor)
+        ),
+        data = cursor.asJson,
+      )
+      ProducerRecord(outputTopicCursorEvent.name, address, tilliJsonEvent)
+    }
+
     ProducerRecords(
-      transactionalProducerRecords ++ nextPageProducerRecord,
+      transactionalProducerRecords ++ nextPageProducerRecord ++ cursorRecord,
       offset
     )
   }

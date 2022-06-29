@@ -19,7 +19,7 @@ trait StreamTrait extends Logging {
     throwable: Throwable,
     inputTopic: InputTopic,
     outputTopicFailure: OutputTopic,
-    dataProvider: DataProvider,
+    dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     throwable match {
       case timeoutException: java.util.concurrent.TimeoutException =>
@@ -67,7 +67,7 @@ trait StreamTrait extends Logging {
     request: Option[String],
     error: Option[String],
     outputTopic: OutputTopic,
-    dataProvider: DataProvider,
+    dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val header = record.value.header.copy(
       eventTimestamp = Instant.now().toEpochMilli,

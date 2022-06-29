@@ -1,7 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.AssetContractTypeSource
+import app.tilli.blockchain.codec.BlockchainClasses.{AssetContractTypeSource, DataProvider}
 import app.tilli.blockchain.codec.BlockchainConfig.AddressType
 import cats.effect.Concurrent
 import cats.effect.kernel.Sync
@@ -15,10 +15,12 @@ import java.util.UUID
 class EtherscanDataProvider[F[_] : Sync](
   val httpClient: Client[F],
   override val concurrent: Concurrent[F],
-) extends ApiProvider[F]
+  override val source: UUID = UUID.fromString("d230ad58-7748-4369-ab9c-e3e11295b6f5"),
+  override val provider: UUID = UUID.fromString("5edcb2aa-8f87-4f90-a5f5-531220eff058"),
+  override val name: Option[String] = Some("Etherscan API"),
+) extends DataProvider(source, provider, name)
+  with ApiProvider[F]
   with AssetContractTypeSource[F] {
-  override val source: UUID = UUID.fromString("d230ad58-7748-4369-ab9c-e3e11295b6f5")
-  override val provider: UUID = UUID.fromString("5edcb2aa-8f87-4f90-a5f5-531220eff058")
   override implicit val client: Client[F] = httpClient
 
   val etherScanHost = "https://api.etherscan.io"
