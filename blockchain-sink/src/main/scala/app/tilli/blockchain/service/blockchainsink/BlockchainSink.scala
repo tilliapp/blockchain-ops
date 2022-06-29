@@ -3,8 +3,9 @@ package app.tilli.blockchain.service.blockchainsink
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.logging.Logging
-import app.tilli.persistence.kafka.{KafkaConsumer, KafkaConsumerConfiguration}
+import app.tilli.persistence.kafka.KafkaConsumer
 import app.tilli.utils.{InputTopic, OutputTopic}
+import cats.Parallel
 import cats.effect.{Async, Sync}
 import fs2.Chunk
 import fs2.kafka._
@@ -17,54 +18,27 @@ import java.util.UUID
 
 object BlockchainSink extends Logging {
 
-  def streamToSink[F[_] : Async](
+  def streamToSink[F[_] : Async : Sync : Parallel](
     r: Resources[F],
   )(implicit
     valueDeserializer: Deserializer[F, TilliJsonEvent],
   ): F[Unit] = {
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
-    val inputTopic = r.appConfig.inputTopicTransactionEvent
+    val inputTopicTransactions = r.appConfig.inputTopicTransactionEvent
+    val inputTopicCursors = r.appConfig.inputTopicDataProviderCursorEvent
     val outputTopicFailure = r.appConfig.outputTopicFailureEvent
 
-    stream(r, kafkaConsumer, kafkaConsumerConfig, inputTopic, outputTopicFailure)
+    import cats.implicits._
+    val transactions: F[Unit] = streamTransactionsIntoDatabase(r, kafkaConsumer, inputTopicTransactions, outputTopicFailure)
       .compile
       .drain
-  }
 
-  def stream[F[_] : Async](
-    resources: Resources[F],
-    kafkaConsumer: KafkaConsumer[String, TilliJsonEvent],
-    kafkaConsumerConfig: KafkaConsumerConfiguration,
-    inputTopic: InputTopic,
-    outputTopicFailure: OutputTopic,
-  )(implicit
-    valueDeserializer: Deserializer[F, TilliJsonEvent],
-  ): fs2.Stream[F, Unit] = {
-    import cats.implicits._
-    import fs2.kafka._
-    kafkaConsumer
-      .consumerStream
-      .subscribeTo(inputTopic.name)
-      .records
-      .chunks
-      .mapAsync(8) { chunk =>
-        //      .evalMapChunk { chunk =>
-        val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
-        val processed = write(resources, transform(chunk))
-          .flatMap {
-            case Right(_) =>
-              Sync[F].pure()
-            case Left(throwable) =>
-              val error = HttpClientError(throwable)
-              log.error(s"Write failed: ${error.message} (code ${error.code}): ${error.headers}")
-              Sync[F].raiseError(error).asInstanceOf[F[Unit]]
-          }
+    val dataProviderCursors: F[Unit] = streamDataProviderCursorsIntoDatabase(r, kafkaConsumer, inputTopicCursors, outputTopicFailure)
+      .compile
+      .drain
 
-        Sync[F].delay(log.info(s"Writing batch of size ${chunk.size}: ${batch.offsets.lastOption.map(t => s"${t._1}:${t._2.offset()}").getOrElse("No offset")}")) *>
-          processed *>
-          batch.commit
-      }
+    transactions &> dataProviderCursors
   }
 
   def transform[F[_]](
@@ -91,7 +65,7 @@ object BlockchainSink extends Logging {
     } yield s"$transactionHash-$transactionOffset-$logOffset"
   }
 
-  def write[F[_] : Sync : Async](
+  def writeTransactions[F[_] : Sync : Async](
     resources: Resources[F],
     data: Seq[TransactionRecord],
   ): F[Either[Throwable, Boolean]] = {
@@ -142,6 +116,111 @@ object BlockchainSink extends Logging {
       List(ProducerRecord(outputTopic.name, record.key, errorEvent)),
       offset
     )
+  }
+
+  def streamTransactionsIntoDatabase[F[_] : Async](
+    resources: Resources[F],
+    kafkaConsumer: KafkaConsumer[String, TilliJsonEvent],
+    inputTopicTransactions: InputTopic,
+    outputTopicFailure: OutputTopic,
+  )(implicit
+    valueDeserializer: Deserializer[F, TilliJsonEvent],
+  ): fs2.Stream[F, Unit] = {
+    import cats.implicits._
+    import fs2.kafka._
+    kafkaConsumer
+      .consumerStream
+      .subscribeTo(inputTopicTransactions.name)
+      .records
+      .chunks
+      .mapAsync(8) { chunk =>
+        val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
+        val processed = writeTransactions(resources, transform(chunk))
+          .flatMap {
+            case Right(_) => Sync[F].pure()
+            case Left(throwable) =>
+              log.error(s"Transactions: Write failed: ${throwable.getMessage}")
+              Sync[F].raiseError(throwable).asInstanceOf[F[Unit]]
+          }
+
+        Sync[F].delay(
+          log.info(s"Transactions: Writing batch of size ${chunk.size}: ${
+            batch.offsets.lastOption.map(t => s"${t._1}:${t._2.offset()}"
+            ).getOrElse("No offset")
+          }")) *> processed *> batch.commit
+      }
+  }
+
+  def streamDataProviderCursorsIntoDatabase[F[_] : Async](
+    resources: Resources[F],
+    kafkaConsumer: KafkaConsumer[String, TilliJsonEvent],
+    inputTopicCursors: InputTopic,
+    outputTopicFailure: OutputTopic,
+  )(implicit
+    valueDeserializer: Deserializer[F, TilliJsonEvent],
+  ): fs2.Stream[F, Unit] = {
+    import cats.implicits._
+    import fs2.kafka._
+    kafkaConsumer
+      .consumerStream
+      .subscribeTo(inputTopicCursors.name)
+      .records
+      .chunks
+      .mapAsync(8) { chunk =>
+        val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
+        val processed = writeDataProviderCursors(resources, transformDataProviderCursorRecords(chunk))
+          .flatMap {
+            case Right(_) => Sync[F].pure()
+            case Left(throwable) =>
+              log.error(s"DataProviderCursor: Write failed: ${throwable.getMessage}")
+              Sync[F].raiseError(throwable).asInstanceOf[F[Unit]]
+          }
+
+        Sync[F].delay(
+          log.info(s"DataProviderCursor: Writing batch of size ${chunk.size}: ${
+            batch.offsets.lastOption.map(t => s"${t._1}:${t._2.offset()}"
+            ).getOrElse("No offset")
+          }")) *> processed *> batch.commit
+      }
+  }
+
+  def writeDataProviderCursors[F[_] : Sync : Async](
+    resources: Resources[F],
+    data: Seq[DataProviderCursor],
+  ): F[Either[Throwable, Boolean]] = {
+    import cats.implicits._
+    import mongo4cats.collection.operations._
+
+    val commands = data.map(t =>
+      WriteCommand.UpdateOne(
+        filter =
+          Filter.eq("data.address", t.address.get)
+            .and(Filter.lt("data.createdAt", t.createdAt.getOrElse(Long.MinValue)))
+        ,
+        update = Update.set("data", t),
+        options = UpdateOptions().upsert(true),
+      )
+    )
+    resources.dataProviderCursorCollection
+      .bulkWrite(commands,
+        BulkWriteOptions()
+          .ordered(false)
+          .bypassDocumentValidation(true)
+      )
+      .attempt
+      .map(_.map(_.wasAcknowledged()))
+  }
+
+  def transformDataProviderCursorRecords[F[_]](
+    chunkRecords: Chunk[CommittableConsumerRecord[F, String, TilliJsonEvent]],
+  ): List[DataProviderCursor] = {
+    chunkRecords
+      .toList
+      .map(_.record.value.data)
+      .map { json =>
+        val Right(record) = json.as[DataProviderCursor](codecDataProviderCursor)
+        record
+      }
   }
 
 }

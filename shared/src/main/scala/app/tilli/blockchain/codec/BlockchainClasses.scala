@@ -134,7 +134,7 @@ object BlockchainClasses {
     address: Option[String],
     cursor: Option[String],
     query: Option[String],
-    createdAt: Option[Long] = Some(Instant.now.toEpochMilli),
+    createdAt: Option[Long] = Option(Instant.now.toEpochMilli),
   )
 
   case class TransactionEventsResult(
