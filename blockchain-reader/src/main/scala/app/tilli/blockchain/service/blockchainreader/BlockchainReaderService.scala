@@ -4,7 +4,7 @@ import app.tilli.BlazeServer
 import app.tilli.api.utils.BlazeHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses.AddressSimple
 import app.tilli.blockchain.codec.BlockchainCodec._
-import app.tilli.blockchain.dataprovider.{ColaventHqDataProvider, EtherscanDataProvider, OpenSeaApi}
+import app.tilli.blockchain.dataprovider.{ColaventHqDataProvider, EtherscanDataProvider, OpenSeaApiDataProvider}
 import app.tilli.blockchain.service.blockchainreader
 import app.tilli.blockchain.service.blockchainreader.config.AppConfig.readerAppConfig
 import app.tilli.collection.MemCache
@@ -40,7 +40,7 @@ object BlockchainReaderService extends IOApp {
         maxConcurrent = appConfig.rateLimitOpenSea.maxConcurrent,
         maxQueued = appConfig.rateLimitOpenSea.maxQueued,
       )
-      openSeaApi <- Resource.eval(IO(new OpenSeaApi[IO](httpClient, concurrent)))
+      openSeaApi <- Resource.eval(IO(new OpenSeaApiDataProvider[IO](httpClient, concurrent)))
       covalentHqRateLimiter <- Limiter.start[IO](
         minInterval = appConfig.rateLimitCovalentHq.minIntervalMs.milliseconds,
         maxConcurrent = appConfig.rateLimitCovalentHq.maxConcurrent,

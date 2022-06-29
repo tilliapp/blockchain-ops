@@ -45,10 +45,9 @@ object AssetContractEventReader extends StreamTrait {
             .subscribeTo(inputTopic.name)
             .records
             .mapAsync(2) { committable =>
-              val trackingId = committable.record.value.header.trackingId
               processRecord(r.assetContractEventSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, AssetContractEventsResult]]]
                 .map {
-                  case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, trackingId, r.assetContractSource)
+                  case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopic, inputTopic, r.assetContractSource)
                   case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
                 }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
             }
@@ -83,17 +82,17 @@ object AssetContractEventReader extends StreamTrait {
     assetContractEvents: AssetContractEventsResult,
     outputTopic: OutputTopic,
     inputTopic: InputTopic,
-    trackingId: UUID,
-    dataProvider: DataProvider,
+    dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val sourcedTime = Instant.now.toEpochMilli
+    val trackingId = UUID.randomUUID()
     val producerRecords = assetContractEvents.events.map { eventJson =>
       val tilliJsonEvent = TilliJsonEvent(
         BlockchainClasses.Header(
-          trackingId = trackingId,
+          trackingId = UUID.randomUUID(),
           eventTimestamp = sourcedTime,
           eventId = UUID.randomUUID(),
-          origin = List(
+          origin = record.value.header.origin ++ List(
             Origin(
               source = Some(dataProvider.source),
               provider = Some(dataProvider.provider),

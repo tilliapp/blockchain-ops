@@ -1,7 +1,7 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.{TransactionEventSource, TransactionEventsResult}
+import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, DataProviderCursor, DataProviderTrait, TransactionEventSource, TransactionEventsResult}
 import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, PaymentTokenDecimalsMap, chainPaymentTokenMap}
 import app.tilli.blockchain.dataprovider.ColaventHqDataProvider._
 import cats.data.EitherT
@@ -21,11 +21,13 @@ import scala.util.Try
 class ColaventHqDataProvider[F[_] : Sync](
   val httpClient: Client[F],
   override val concurrent: Concurrent[F],
-) extends ApiProvider[F]
+  override val source: UUID = UUID.fromString("5f4a7bfa-482d-445d-9bda-e83937581026"),
+  override val provider: UUID = UUID.fromString("0977c146-f3c5-43c5-a33b-e376eb73ba0b"),
+  override val name: Option[String] = Some("Covalent HQ API"),
+) extends DataProvider(source, provider, name)
+  with ApiProvider[F]
   with TransactionEventSource[F] {
 
-  override val source: UUID = UUID.fromString("5f4a7bfa-482d-445d-9bda-e83937581026")
-  override val provider: UUID = UUID.fromString("0977c146-f3c5-43c5-a33b-e376eb73ba0b")
   private val host: String = "https://api.covalenthq.com"
   private val apiKey: String = "ckey_f488176d2b8e42829318059b90e"
   private val headers: Headers = Headers(
@@ -46,6 +48,11 @@ class ColaventHqDataProvider[F[_] : Sync](
   ): F[Either[Throwable, TransactionEventsResult]] = {
     val covalentChain = chainMap(Chain.withName(chainId))
     val path = s"v1/$covalentChain/address/$address/transactions_v2/"
+    val queryParams = Map(
+      "key" -> apiKey,
+      "page-size" -> "30",
+      "block-signed-at-asc" -> "true", // use this to ensure that data is returned chronologically asc
+    ) ++ page.map(p => Map[String, String]("page-number" -> s"$p")).getOrElse(Map.empty[String, String])
     import cats.implicits._
     val chain = for {
       page <- EitherT(Sync[F].pure(page.map(s => Try(Integer.parseInt(s)).toEither).sequence.leftMap(new IllegalArgumentException("Page count could not be parsed", _))))
@@ -54,20 +61,27 @@ class ColaventHqDataProvider[F[_] : Sync](
           .call[F, Json, Json](
             host = host,
             path = path,
-            queryParams = Map(
-              "key" -> apiKey,
-              "page-size" -> "30",
-            ) ++ page.map(p => Map[String, String]("page-number" -> s"$p")).getOrElse(Map.empty[String, String]),
+            queryParams = queryParams,
             headers = headers,
             conversion = json => json,
           )
       ))
-      events <- EitherT(Sync[F].pure(Right(getTransactionEventsFromResult(result, Option(address))).asInstanceOf[Either[Throwable, List[Json]]]))
-      nextPage <- EitherT(Sync[F].pure(Right(getNextPageFromResult(result)).asInstanceOf[Either[Throwable, Option[Int]]]))
-    } yield TransactionEventsResult(
-      events = events,
-      nextPage = nextPage,
-    )
+    } yield {
+      val events = getTransactionEventsFromResult(result, Option(address))
+      val nextPage = getNextPageFromResult(result)
+      val dataProviderCursor =
+        getDataProviderCursor(
+          address = address,
+          dataProvider = this,
+          currentPage = page.map(_.toString),
+          query = SimpleHttpClient.toUri(host, path, queryParams).toOption.map(_.renderString),
+        )
+      TransactionEventsResult(
+        events = events,
+        nextPage = nextPage,
+        dataProviderCursor = dataProviderCursor,
+      )
+    }
     chain.value
   }
 }
@@ -85,6 +99,25 @@ object ColaventHqDataProvider {
     }
   }
 
+  def getDataProviderCursor(
+    address: String,
+    dataProvider: DataProvider,
+    currentPage: Option[String],
+    query: Option[String],
+  ): Option[DataProviderCursor] =
+    Some(
+      DataProviderCursor(
+        dataProvider = Some(dataProvider),
+        address = Option(address),
+        cursor = currentPage,
+        query = query,
+      )
+    )
+
+  def tsToEpochMilli(ts: Option[String]): Option[Long] =
+    ts.map(ts => if (!ts.toLowerCase.endsWith("z")) s"${ts}Z" else ts)
+      .flatMap(ts => Try(Instant.parse(ts)).toOption).map(_.toEpochMilli)
+
   def getTransactionEventsFromResult(
     data: Json,
     filterLogsAddress: Option[String] = None,
@@ -99,9 +132,6 @@ object ColaventHqDataProvider {
       val transactionHash = root.txHash.string.getOption(eventJson)
       val transactionOffset = root.txOffset.int.getOption(eventJson).map(Json.fromInt)
       val totalPrice = root.value.string.getOption(eventJson).map(Json.fromString)
-      val transactionTime = root.blockSignedAt.string.getOption(eventJson)
-        .map(ts => if (!ts.toLowerCase.endsWith("z")) s"${ts}Z" else ts)
-        .flatMap(ts => Try(Instant.parse(ts)).toOption).map(_.toEpochMilli).map(Json.fromLong)
       val quantity = Some(Json.fromInt(1)) // TODO: Is this a fair assumption? We don't have any quantity counts in covalent
 
       val logs = root.logEvents.each.json.getAll(eventJson)
@@ -114,6 +144,8 @@ object ColaventHqDataProvider {
 
               if (filterLogsAddress.isEmpty || from.flatMap(_.asString).contains(filterLogsAddress.get) || to.flatMap(_.asString).contains(filterLogsAddress.get)) {
                 val eventType = Option(Json.fromString(EventType.transfer.toString))
+                val transactionTime = tsToEpochMilli(root.blockSignedAt.string.getOption(logEvent)).map(Json.fromLong)
+                val blockHeight = root.blockHeight.int.getOption(logEvent).map(Json.fromInt)
                 val logOffset = root.logOffset.int.getOption(logEvent).map(Json.fromInt)
                 val assetContractAddress = root.senderAddress.string.getOption(logEvent).map(Json.fromString)
                 val assetContractName = root.senderName.string.getOption(logEvent).map(Json.fromString)
@@ -138,6 +170,7 @@ object ColaventHqDataProvider {
                     "totalPrice" -> totalPrice,
                     "quantity" -> quantity,
                     "transactionTime" -> transactionTime,
+                    "blockHeight" -> blockHeight,
                     "eventType" -> eventType,
                     "logOffset" -> logOffset,
                     "fromAddress" -> from,

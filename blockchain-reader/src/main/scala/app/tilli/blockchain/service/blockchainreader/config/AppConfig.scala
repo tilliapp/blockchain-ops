@@ -42,6 +42,9 @@ case class AppConfig(
 
   outputTopicFailureEvent: OutputTopic,
 
+  inputTopicDataProviderCursorEvent: InputTopic,
+  outputTopicDataProviderCursorEvent: OutputTopic,
+
   rateLimitOpenSea: RateLimitConfig,
   rateLimitCovalentHq: RateLimitConfig,
   rateLimitEtherscan: RateLimitConfig,

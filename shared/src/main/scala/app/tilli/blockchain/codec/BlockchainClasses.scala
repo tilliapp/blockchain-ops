@@ -60,11 +60,19 @@ object BlockchainClasses {
     def provider: UUID
   }
 
-  trait DataProvider extends Source with Provider {
+  trait DataProviderTrait extends Source with Provider {
     def source: UUID
 
     def provider: UUID
+
+    def name: Option[String] = None
   }
+
+  class DataProvider(
+    override val source: UUID,
+    override val provider: UUID,
+    override val name: Option[String]
+  ) extends DataProviderTrait
 
   case class Origin(
     source: Option[UUID],
@@ -86,7 +94,7 @@ object BlockchainClasses {
     data: Json,
   ) extends TilliEvent[Json]
 
-  trait AssetContractSource[F[_]] extends DataProvider {
+  trait AssetContractSource[F[_]] extends DataProviderTrait {
 
     def getAssetContract(
       assetContractAddress: String,
@@ -95,7 +103,7 @@ object BlockchainClasses {
 
   }
 
-  trait AssetContractTypeSource[F[_]] extends DataProvider {
+  trait AssetContractTypeSource[F[_]] extends DataProviderTrait {
 
     def getAssetContractType(
       assetContractAddress: String,
@@ -109,7 +117,7 @@ object BlockchainClasses {
     nextPage: Option[String],
   )
 
-  trait AssetContractEventSource[F[_]] extends DataProvider {
+  trait AssetContractEventSource[F[_]] extends DataProviderTrait {
 
     def getAssetContractEvents(
       trackingId: UUID,
@@ -121,12 +129,21 @@ object BlockchainClasses {
     def getAssetContractAddress(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String]
   }
 
+  case class DataProviderCursor(
+    dataProvider: Option[DataProvider],
+    address: Option[String],
+    cursor: Option[String],
+    query: Option[String],
+    createdAt: Option[Long] = Some(Instant.now.toEpochMilli),
+  )
+
   case class TransactionEventsResult(
     events: List[Json],
     nextPage: Option[Int],
+    dataProviderCursor: Option[DataProviderCursor],
   )
 
-  trait TransactionEventSource[F[_]] extends DataProvider {
+  trait TransactionEventSource[F[_]] extends DataProviderTrait {
 
     def getTransactionEvents(
       address: String,

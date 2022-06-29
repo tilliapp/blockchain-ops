@@ -56,5 +56,4 @@ object BlockchainSinkService extends IOApp {
       .compile
       .drain
 
-
 }
