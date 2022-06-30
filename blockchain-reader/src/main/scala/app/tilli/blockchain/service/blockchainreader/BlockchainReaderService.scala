@@ -7,7 +7,7 @@ import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.dataprovider.{ColaventHqDataProvider, EtherscanDataProvider, OpenSeaApiDataProvider}
 import app.tilli.blockchain.service.blockchainreader
 import app.tilli.blockchain.service.blockchainreader.config.AppConfig.readerAppConfig
-import app.tilli.collection.MemCache
+import app.tilli.collection.{AddressRequestCache, MemCache}
 import app.tilli.persistence.kafka.SslConfig
 import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
@@ -57,15 +57,19 @@ object BlockchainReaderService extends IOApp {
       covalentHqApi <- Resource.eval(IO(new ColaventHqDataProvider[IO](httpClient, concurrent)))
       etherscanApi <- Resource.eval(IO(new EtherscanDataProvider[IO](httpClient, concurrent)))
 
+      mongoClient <- MongoDbAdapter.resource(appConfig.mongoDbConfig.url)
+      mongoDatabase <- Resource.eval(mongoClient.getDatabase(appConfig.mongoDbConfig.db))
+      dataProviderCursorCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[Json](appConfig.mongoDbCollectionDataProviderCursor))
+      addressRequestCacheCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[Json](appConfig.mongoDbCollectionAddressRequestCache))
+
       addressTypeCache <- MemCache.resource[IO, String, AddressSimple](duration = 365.days)
-      addressRequestCache <- MemCache.resource[IO, String, AddressRequest](duration = 2.hours)
+      addressRequestMemCache <- MemCache.resource[IO, String, AddressRequest](duration = 15.minutes)
+      addressRequestCache = new AddressRequestCache[IO](addressRequestMemCache, addressRequestCacheCollection)
+
       dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 2.hours)
 
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
 
-      mongoClient <- MongoDbAdapter.resource(appConfig.mongoDbConfig.url)
-      mongoDatabase <- Resource.eval(mongoClient.getDatabase(appConfig.mongoDbConfig.db))
-      dataProviderCursorCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[Json](appConfig.mongoDbCollectionDataProviderCursor))
     } yield blockchainreader.Resources(
       appConfig = appConfig,
       httpServerPort = appConfig.httpServerPort,

@@ -55,6 +55,7 @@ case class AppConfig(
 
   mongoDbConfig: MongoDbConfig,
   mongoDbCollectionDataProviderCursor: String,
+  mongoDbCollectionAddressRequestCache: String,
 )
 
 object AppConfig {

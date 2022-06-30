@@ -5,6 +5,7 @@ import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAddressRequest, DataTypeToVersion, dataProviderCovalentHq}
 import app.tilli.blockchain.service.StreamTrait
+import app.tilli.collection.AddressRequestCache
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
 import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.MonadThrow
@@ -12,11 +13,11 @@ import cats.data.EitherT
 import cats.effect.{Async, Sync}
 import fs2.kafka._
 import io.chrisdavenport.mules.Cache
-import io.circe.{Decoder, Json}
+import io.circe.Json
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
 import mongo4cats.collection.MongoCollection
-import mongo4cats.collection.operations.{Filter, Projection, Sort}
+import mongo4cats.collection.operations.{Filter, Sort}
 import upperbound.Limiter
 
 import java.time.Instant
@@ -72,7 +73,7 @@ object AddressFilter extends StreamTrait {
   def filter[F[_] : Sync : Async](
     record: ConsumerRecord[String, TilliJsonEvent],
     addressTypeCache: Cache[F, String, AddressSimple],
-    addressRequestCache: Cache[F, String, AddressRequest],
+    addressRequestCache: AddressRequestCache[F],
     dataProviderCursorCache: Cache[F, String, DataProviderCursor],
     assetContractTypeSource: AssetContractTypeSource[F],
     dataProvider: DataProvider,
@@ -80,7 +81,6 @@ object AddressFilter extends StreamTrait {
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, List[AddressRequest]]] = {
     val blockChain = root.chain.string.getOption(record.value.data)
-
     val addresses = List(
       root.toAddress.string.getOption(record.value.data),
       root.fromAddress.string.getOption(record.value.data),
@@ -89,21 +89,25 @@ object AddressFilter extends StreamTrait {
     import cats.implicits._
     val temp = addresses
       .filterNot(_ == "0x0000000000000000000000000000000000000000") // Remove null address
-      .map(a =>
-        EitherT(
-          checkAndInsertIntoCache(
-            a,
-            blockChain,
-            addressTypeCache,
-            addressRequestCache,
-            dataProviderCursorCache,
-            assetContractTypeSource,
-            dataProvider,
-            dataProviderCursorCollection,
-            rateLimiter,
+      .map { a =>
+        val chain = for {
+          bc <- EitherT(Sync[F].pure(root.chain.string.getOption(record.value.data).toRight(new IllegalStateException(s"Missing blockchain id on event ${record.value.header.eventId}"))))
+          c <- EitherT(
+            checkAndInsertIntoCache(
+              a,
+              bc,
+              addressTypeCache,
+              addressRequestCache,
+              dataProviderCursorCache,
+              assetContractTypeSource,
+              dataProvider,
+              dataProviderCursorCollection,
+              rateLimiter,
+            )
           )
-        )
-      ).sequence
+        } yield c
+        chain
+      }.sequence
       .map(r => r.flatten)
       .value
     temp
@@ -120,9 +124,9 @@ object AddressFilter extends StreamTrait {
 
   def checkAndInsertIntoCache[F[_] : Sync](
     a: String,
-    blockChain: Option[String],
+    blockChain: String,
     addressTypeCache: Cache[F, String, AddressSimple],
-    addressRequestCache: Cache[F, String, AddressRequest],
+    addressRequestCache: AddressRequestCache[F],
     dataProviderCursorCache: Cache[F, String, DataProviderCursor],
     assetContractTypeSource: AssetContractTypeSource[F],
     dataProvider: DataProvider,
@@ -132,37 +136,49 @@ object AddressFilter extends StreamTrait {
     F: MonadThrow[F],
   ): F[Either[Throwable, Option[AddressRequest]]] = {
     import cats.implicits._
-    addressRequestCache
-      .lookup(a)
-//      .flatTap(r => Sync[F].delay(log.info(s"Cache for $a: $r")))
-      .flatMap {
-        case None => // we have not emitted any requests at all
-          getAddressType(addressTypeCache, assetContractTypeSource, rateLimiter, a) // Later replace with call to mongo and then etherscan if no mongo
-            .flatMap {
-              case Right(adt) => // if the address type is contract then skip
-                if (adt.isContract.contains(false)) {
-                  checkAndInsertDataProviderCursor(adt, dataProvider, dataProviderCursorCache, dataProviderCursorCollection)
-                    .map(_.map(Some(_)))
-                    .map(_.map(_.map(dpc =>
-                      AddressRequest(
-                        dpc.address,
-                        blockChain,
-                        dataProvider = Some(dataProvider),
-                        nextPage = dpc.cursor,
-                      )))
-                    ).flatMap {
-                    case Left(err) =>
-                      F.raiseError(err)
-                    case either@Right(result) =>
-                      result.map(addressRequestCache.insert(a, _)).getOrElse(F.pure(None)) *> F.pure(either)
-                  }
-                } else F.pure(Right(None))
-              case Left(err) => F.pure(Left(err))
-            }
 
-        case Some(_) => // We have already requested so don't request again
-          Sync[F].delay(log.info(s"Deduped address (cached): $a")) *>
-            F.pure(Right(None)) // Prev requests will age out and we can then call again
+    val addressRequestCandidate = AddressRequest(
+      address = a,
+      chain = blockChain,
+      dataProvider = dataProvider,
+      nextPage = None,
+    )
+    val key = AddressRequest.key(addressRequestCandidate)
+
+    addressRequestCache
+      .lookup(addressRequestCandidate)
+      .flatTap(r => Sync[F].delay(log.info(s"Cache for $key: $r")))
+      .flatMap {
+        case Left(err) => F.raiseError(err)
+        case Right(res) => res match {
+          case None => // we have not emitted any requests at all
+            getAddressType(addressTypeCache, assetContractTypeSource, rateLimiter, a) // Later replace with call to mongo and then etherscan if no mongo
+              .flatMap {
+                case Right(adt) => // if the address type is contract then skip
+                  if (adt.isContract.contains(false)) {
+                    checkAndInsertDataProviderCursor(adt, dataProvider, dataProviderCursorCache, dataProviderCursorCollection)
+                      .map(_.map(Some(_)))
+                      .map(_.map(_.map(dpc =>
+                        AddressRequest(
+                          dpc.address,
+                          blockChain,
+                          dataProvider = dataProvider,
+                          nextPage = dpc.cursor,
+                        )))
+                      ).flatMap {
+                      case Left(err) =>
+                        F.raiseError(err)
+                      case either@Right(result) =>
+                        result.map(addressRequestCache.insert).getOrElse(F.pure(None)) *> F.pure(either)
+                    }
+                  } else F.pure(Right(None))
+                case Left(err) => F.pure(Left(err))
+              }
+
+          case Some(_) => // We have already requested so don't request again
+            Sync[F].delay(log.info(s"Deduped address (cached) with key: ${key}")) *>
+              F.pure(Right(None)) // Prev requests will age out and we can then call again
+        }
       }
   }
 
