@@ -1,6 +1,5 @@
 package app.tilli.blockchain.codec
 
-import app.tilli.blockchain.codec.BlockchainClasses.DataProviderCursor
 import app.tilli.blockchain.codec.BlockchainConfig.AddressType
 import io.circe.Json
 import upperbound.Limiter
@@ -67,21 +66,27 @@ object BlockchainClasses {
     def provider: UUID
 
     def name: Option[String] = None
+
+    def defaultPage: String
   }
 
   class DataProvider(
     override val source: UUID,
     override val provider: UUID,
-    override val name: Option[String]
+    override val name: Option[String],
+    override val defaultPage: String,
   ) extends DataProviderTrait
 
   object DataProvider {
 
-    def apply(dataProvider: DataProviderTrait): DataProvider =
+    def apply(
+      dataProvider: DataProviderTrait,
+    ): DataProvider =
       new DataProvider(
         source = dataProvider.source,
         provider = dataProvider.provider,
         name = dataProvider.name,
+        defaultPage = dataProvider.defaultPage,
       )
 
   }
@@ -185,10 +190,24 @@ object BlockchainClasses {
 
   case class AddressRequest(
     address: String,
-    chain: Option[String],
-    dataProvider: Option[DataProvider],
+    chain: String,
+    dataProvider: DataProvider,
     nextPage: Option[String] = None,
     attempt: Int = 1,
+  )
+
+  object AddressRequest {
+
+    def key(addressRequest: AddressRequest): String = {
+      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage}"
+    }
+
+  }
+
+  case class AddressRequestRecord(
+    createdAt: Instant,
+    key: String,
+    addressRequest: AddressRequest,
   )
 
   case class AddressSimple(
