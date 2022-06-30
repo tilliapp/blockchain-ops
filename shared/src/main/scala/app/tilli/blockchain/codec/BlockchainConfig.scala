@@ -29,6 +29,21 @@ object BlockchainConfig {
     source = UUID.fromString("5f4a7bfa-482d-445d-9bda-e83937581026"),
     provider = UUID.fromString("0977c146-f3c5-43c5-a33b-e376eb73ba0b"),
     name = Some("Covalent HQ API"),
+    defaultPage = "0",
+  )
+
+  val dataProviderEtherscan = new DataProvider(
+    source = UUID.fromString("d230ad58-7748-4369-ab9c-e3e11295b6f5"),
+    provider = UUID.fromString("5edcb2aa-8f87-4f90-a5f5-531220eff058"),
+    name = Some("Etherscan API"),
+    defaultPage = "0",
+  )
+
+  val dataProviderOpenSea = new DataProvider(
+    source = UUID.fromString("7dc94bcb-c490-405b-8989-0efdace798f6"),
+    provider = UUID.fromString("2365f620-d5b9-43c6-9dd4-986ee8477167"),
+    name = Some("OpenSea API"),
+    defaultPage = "",
   )
 
   val VersionToDataType = DataTypeToVersion.map(t => t._2 -> t._1)
