@@ -20,8 +20,12 @@ import scala.util.Try
 class ColaventHqDataProvider[F[_] : Sync](
   val httpClient: Client[F],
   override val concurrent: Concurrent[F],
-) extends DataProvider(dataProviderCovalentHq.source, dataProviderCovalentHq.provider, dataProviderCovalentHq.name)
-  with ApiProvider[F]
+) extends DataProvider(
+  dataProviderCovalentHq.source,
+  dataProviderCovalentHq.provider,
+  dataProviderCovalentHq.name,
+  dataProviderCovalentHq.defaultPage,
+) with ApiProvider[F]
   with TransactionEventSource[F] {
 
   private val host: String = "https://api.covalenthq.com"
@@ -44,7 +48,7 @@ class ColaventHqDataProvider[F[_] : Sync](
   ): F[Either[Throwable, TransactionEventsResult]] = {
     val covalentChain = chainMap(Chain.withName(chainId))
     val path = s"v1/$covalentChain/address/$address/transactions_v2/"
-    val pageNumber = page.getOrElse("0")
+    val pageNumber = page.getOrElse(defaultPage)
     val queryParams = Map(
       "key" -> apiKey,
       "page-size" -> "100",

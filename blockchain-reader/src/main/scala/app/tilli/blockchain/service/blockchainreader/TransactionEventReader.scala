@@ -69,7 +69,7 @@ object TransactionEventReader extends StreamTrait {
   ): F[Either[Throwable, TransactionEventsResult]] = {
     val chain = for {
       addressRequest <- EitherT(Sync[F].pure(record.value.data.as[AddressRequest]))
-      bc <- EitherT(Sync[F].pure(addressRequest.chain.toRight(new IllegalStateException(s"No chain information was found for record tracking id ${record.value.header.trackingId}")).asInstanceOf[Either[Throwable, String]]))
+      bc <- EitherT(Sync[F].pure(Right(addressRequest.chain).asInstanceOf[Either[Throwable, String]]))
       transactionResult <- EitherT(source.getTransactionEvents(addressRequest.address, bc, addressRequest.nextPage, rateLimiter).asInstanceOf[F[Either[Throwable, TransactionEventsResult]]])
     } yield transactionResult
     chain.value
@@ -116,13 +116,13 @@ object TransactionEventReader extends StreamTrait {
     val nextPageProducerRecord = for {
       np <- transactionEventsResults.nextPage
       address <- root.address.string.getOption(record.value.data)
-      chain = root.chain.string.getOption(record.value.data)
+      chain <- root.chain.string.getOption(record.value.data)
     } yield {
       val req = AddressRequest(
         address = address,
         chain = chain,
         nextPage = Some(np.toString),
-        dataProvider = Some(DataProvider(dataProvider))
+        dataProvider = DataProvider(dataProvider),
       )
       val tilliJsonEvent = TilliJsonEvent(
         BlockchainClasses.Header(

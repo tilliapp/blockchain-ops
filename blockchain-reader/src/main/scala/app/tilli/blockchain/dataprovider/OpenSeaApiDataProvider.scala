@@ -2,7 +2,7 @@ package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType}
+import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, dataProviderEtherscan, dataProviderOpenSea}
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
 import io.circe.Json
@@ -19,11 +19,12 @@ import scala.util.Try
 class OpenSeaApiDataProvider[F[_] : Sync](
   val httpClient: Client[F],
   override val concurrent: Concurrent[F],
-  override val source: UUID = UUID.fromString("7dc94bcb-c490-405b-8989-0efdace798f6"),
-  override val provider: UUID = UUID.fromString("2365f620-d5b9-43c6-9dd4-986ee8477167"),
-  override val name: Option[String] = Some("OpenSea API"),
-) extends DataProvider(source, provider, name)
-  with ApiProvider[F]
+) extends DataProvider(
+  dataProviderOpenSea.source,
+  dataProviderOpenSea.provider,
+  dataProviderOpenSea.name,
+  dataProviderOpenSea.defaultPage,
+) with ApiProvider[F]
   with AssetContractSource[F]
   with AssetContractEventSource[F] {
 
@@ -87,7 +88,7 @@ class OpenSeaApiDataProvider[F[_] : Sync](
       "event_type" -> "transfer",
       "limit" -> "50",
       //      "occurred_after" -> "",
-    ) ++ nextPage.map(np => Map("cursor" -> np)).getOrElse(Map.empty)
+    ) ++ nextPage.filter(s => s != null && s.nonEmpty).map(np => Map("cursor" -> np)).getOrElse(Map.empty)
 
     val chain = for {
       result <- EitherT(rateLimiter.submit(
