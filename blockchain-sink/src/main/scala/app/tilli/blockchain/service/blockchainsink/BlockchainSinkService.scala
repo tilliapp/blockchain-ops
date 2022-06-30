@@ -1,7 +1,7 @@
 package app.tilli.blockchain.service.blockchainsink
 
 import app.tilli.BlazeServer
-import app.tilli.blockchain.codec.BlockchainClasses.{DataProviderCursor, DataProviderCursorRecord, TransactionRecord}
+import app.tilli.blockchain.codec.BlockchainClasses.{DataProviderCursorRecord, TransactionRecord}
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.service.blockchainsink.config.AppConfig.readerAppConfig
 import app.tilli.persistence.kafka.SslConfig

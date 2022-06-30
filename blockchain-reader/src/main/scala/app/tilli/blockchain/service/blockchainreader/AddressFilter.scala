@@ -16,7 +16,7 @@ import io.circe.{Decoder, Json}
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
 import mongo4cats.collection.MongoCollection
-import mongo4cats.collection.operations.{Filter, Projection}
+import mongo4cats.collection.operations.{Filter, Projection, Sort}
 import upperbound.Limiter
 
 import java.time.Instant
@@ -93,6 +93,7 @@ object AddressFilter extends StreamTrait {
         EitherT(
           checkAndInsertIntoCache(
             a,
+            blockChain,
             addressTypeCache,
             addressRequestCache,
             dataProviderCursorCache,
@@ -101,12 +102,6 @@ object AddressFilter extends StreamTrait {
             dataProviderCursorCollection,
             rateLimiter,
           )
-            .map(e => e.map(res => res.map(dpc => AddressRequest(
-              dpc.address,
-              blockChain,
-              dataProvider = Some(dataProvider),
-              nextPage = dpc.cursor,
-            ))))
         )
       ).sequence
       .map(r => r.flatten)
@@ -125,6 +120,7 @@ object AddressFilter extends StreamTrait {
 
   def checkAndInsertIntoCache[F[_] : Sync](
     a: String,
+    blockChain: Option[String],
     addressTypeCache: Cache[F, String, AddressSimple],
     addressRequestCache: Cache[F, String, AddressRequest],
     dataProviderCursorCache: Cache[F, String, DataProviderCursor],
@@ -134,24 +130,39 @@ object AddressFilter extends StreamTrait {
     rateLimiter: Limiter[F],
   )(implicit
     F: MonadThrow[F],
-  ): F[Either[Throwable, Option[DataProviderCursor]]] = {
+  ): F[Either[Throwable, Option[AddressRequest]]] = {
     import cats.implicits._
     addressRequestCache
       .lookup(a)
+//      .flatTap(r => Sync[F].delay(log.info(s"Cache for $a: $r")))
       .flatMap {
         case None => // we have not emitted any requests at all
           getAddressType(addressTypeCache, assetContractTypeSource, rateLimiter, a) // Later replace with call to mongo and then etherscan if no mongo
             .flatMap {
               case Right(adt) => // if the address type is contract then skip
-                if (adt.isContract.contains(false))
+                if (adt.isContract.contains(false)) {
                   checkAndInsertDataProviderCursor(adt, dataProvider, dataProviderCursorCache, dataProviderCursorCollection)
                     .map(_.map(Some(_)))
-                else F.pure(Right(None))
+                    .map(_.map(_.map(dpc =>
+                      AddressRequest(
+                        dpc.address,
+                        blockChain,
+                        dataProvider = Some(dataProvider),
+                        nextPage = dpc.cursor,
+                      )))
+                    ).flatMap {
+                    case Left(err) =>
+                      F.raiseError(err)
+                    case either@Right(result) =>
+                      result.map(addressRequestCache.insert(a, _)).getOrElse(F.pure(None)) *> F.pure(either)
+                  }
+                } else F.pure(Right(None))
               case Left(err) => F.pure(Left(err))
             }
 
         case Some(_) => // We have already requested so don't request again
-          F.pure(Right(None)) // Prev requests will age out and we can then call again
+          Sync[F].delay(log.info(s"Deduped address (cached): $a")) *>
+            F.pure(Right(None)) // Prev requests will age out and we can then call again
       }
   }
 
@@ -229,28 +240,17 @@ object AddressFilter extends StreamTrait {
     val key = DataProviderCursor.key(address, dataProvider)
     dataProviderCursorCollection
       .find
+      .sort(Sort.desc("data.data.createdAt"))
       .filter(Filter.eq("data.key", key))
-      .all
+      .first
       .attempt
-      .map(_.flatMap { data =>
-        if (data.size > 1) Left(new IllegalStateException(s"More than one cursor was found for address $address for dataProvider $dataProvider: ${data.size}"))
-        else Right(
-          data.headOption
-            .flatMap(j => root.data.json.getOption(j).map(_.as[DataProviderCursorRecord]))
-        )
-      })
+      .map(_.map(_.flatMap(j => root.data.json.getOption(j).map(_.as[DataProviderCursorRecord]))))
       .flatMap {
         case Right(result) =>
           F.pure(
             result
               .map(_.leftMap(err => new IllegalStateException(s"Could not deserialize DataProviderCursorRecord for key $key", err)))
               .sequence
-            //          result match {
-            //            case Some(r) => r
-            //              .leftMap(err => new IllegalStateException(s"Could not deserialize DataProviderCursorRecord for key $key", err))
-            //              .map(Some(_))
-            //            case None => Right(None) // no cursor for this key
-            //          }
           )
         case Left(err) => F.pure(Left(err))
       }
