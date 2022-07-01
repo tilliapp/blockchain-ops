@@ -205,15 +205,10 @@ object BlockchainClasses {
 
   }
 
-  case class AddressRequestRecordMongoDb(
-    `_id`: String,
-    data: AddressRequestRecord,
-  )
-
   case class AddressRequestRecord(
-    createdAt: Instant,
     key: String,
     data: AddressRequest,
+    createdAt: Instant = Instant.now,
   )
 
   case class AddressSimple(
@@ -244,14 +239,15 @@ object BlockchainClasses {
   )
 
   case class TransactionRecord(
-    transactionTime: Option[Instant],
-    key: Option[String],
+    key: String,
     data: TransactionRecordData,
+    createdAt: Instant = Instant.now,
   )
 
   case class DataProviderCursorRecord(
     key: String,
     data: DataProviderCursor,
+    createdAt: Instant = Instant.now,
   )
 
   object DataProviderCursorRecord {
