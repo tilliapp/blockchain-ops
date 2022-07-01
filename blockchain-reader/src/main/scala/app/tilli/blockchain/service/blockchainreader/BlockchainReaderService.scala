@@ -33,7 +33,9 @@ object BlockchainReaderService extends IOApp {
       "ssl.endpoint.identification.algorithm" -> "",
     )
 
-    import mongo4cats.circe._
+//    import mongo4cats.circe._
+    import app.tilli.blockchain.codec.BlockchainCodec._
+    import app.tilli.blockchain.codec.BlockchainMongodbCodec._
     val resources = for {
       appConfig <- ApplicationConfig()
       httpClient <- BlazeHttpClient.clientWithRetry(appConfig.httpClientConfig)
@@ -65,7 +67,7 @@ object BlockchainReaderService extends IOApp {
       addressRequestMemCache <- MemCache.resource[IO, String, AddressRequest](duration = 30.seconds)
       addressRequestCache = new AddressRequestCache[IO](addressRequestMemCache, addressRequestCacheCollection)
 
-      dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 2.hours)
+      dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 30.seconds)
 
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
 

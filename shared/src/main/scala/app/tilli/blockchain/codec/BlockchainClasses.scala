@@ -94,12 +94,12 @@ object BlockchainClasses {
   case class Origin(
     source: Option[UUID],
     provider: Option[UUID],
-    sourcedTimestamp: Long,
+    sourcedTimestamp: Instant,
   )
 
   case class Header(
     trackingId: UUID,
-    eventTimestamp: Long,
+    eventTimestamp: Instant,
     eventId: UUID,
     origin: List[Origin],
     dataType: Option[String],

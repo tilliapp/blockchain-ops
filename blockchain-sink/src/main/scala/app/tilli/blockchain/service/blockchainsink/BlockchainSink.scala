@@ -9,7 +9,8 @@ import cats.Parallel
 import cats.effect.{Async, Sync}
 import fs2.Chunk
 import fs2.kafka._
-import io.circe.Json
+import io.circe.generic.semiauto.deriveCodec
+import io.circe.{Codec, Json}
 import io.circe.optics.JsonPath.root
 import mongo4cats.collection.{BulkWriteOptions, ReplaceOptions, WriteCommand}
 
@@ -105,7 +106,7 @@ object BlockchainSink extends Logging {
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val errorEvent = record.value.copy(
       header = record.value.header.copy(
-        eventTimestamp = Instant.now().toEpochMilli,
+        eventTimestamp = Instant.now,
         eventId = UUID.randomUUID(),
         origin = record.value.header.origin
       ),
@@ -193,8 +194,8 @@ object BlockchainSink extends Logging {
       .map(DataProviderCursorRecord(_))
       .map(cursor =>
         WriteCommand.ReplaceOne(
-          filter = Filter.eq("key", cursor.key)
-            .and(Filter.lt("createdAt", cursor.data.createdAt)),
+          filter = Filter.eq("key", cursor.key),
+//            .and(Filter.lt("data.createdAt", cursor.data.createdAt)),
           replacement = cursor,
           options = ReplaceOptions().upsert(true),
         )

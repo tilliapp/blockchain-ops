@@ -70,13 +70,13 @@ trait StreamTrait extends Logging {
     dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val header = record.value.header.copy(
-      eventTimestamp = Instant.now().toEpochMilli,
+      eventTimestamp = Instant.now(),
       eventId = UUID.randomUUID(),
       origin = record.value.header.origin ++ List(
         Origin(
           source = Some(dataProvider.source),
           provider = Some(dataProvider.provider),
-          sourcedTimestamp = Instant.now.toEpochMilli,
+          sourcedTimestamp = Instant.now,
         )
       ),
       dataType = Some(DataTypeDataProviderError),

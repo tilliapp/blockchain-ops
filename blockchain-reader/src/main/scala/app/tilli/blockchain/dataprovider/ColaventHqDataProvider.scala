@@ -4,6 +4,7 @@ import app.tilli.api.utils.SimpleHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, DataProviderCursor, TransactionEventSource, TransactionEventsResult}
 import app.tilli.blockchain.codec.BlockchainConfig._
 import app.tilli.blockchain.dataprovider.ColaventHqDataProvider._
+import app.tilli.utils.DateUtils
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
 import io.circe.Json
@@ -115,9 +116,6 @@ object ColaventHqDataProvider {
       )
     )
 
-  def tsToEpochMilli(ts: Option[String]): Option[Long] =
-    ts.map(ts => if (!ts.toLowerCase.endsWith("z")) s"${ts}Z" else ts)
-      .flatMap(ts => Try(Instant.parse(ts)).toOption).map(_.toEpochMilli)
 
   def getTransactionEventsFromResult(
     data: Json,
@@ -145,7 +143,7 @@ object ColaventHqDataProvider {
 
               if (filterLogsAddress.isEmpty || from.flatMap(_.asString).contains(filterLogsAddress.get) || to.flatMap(_.asString).contains(filterLogsAddress.get)) {
                 val eventType = Option(Json.fromString(EventType.transfer.toString))
-                val transactionTime = tsToEpochMilli(root.blockSignedAt.string.getOption(logEvent)).map(Json.fromLong)
+                val transactionTime = DateUtils.tsToInstant(root.blockSignedAt.string.getOption(logEvent)).map(i => Json.fromString(i.toString))
                 val blockHeight = root.blockHeight.int.getOption(logEvent).map(Json.fromInt)
                 val logOffset = root.logOffset.int.getOption(logEvent).map(Json.fromInt)
                 val assetContractAddress = root.senderAddress.string.getOption(logEvent).map(Json.fromString)

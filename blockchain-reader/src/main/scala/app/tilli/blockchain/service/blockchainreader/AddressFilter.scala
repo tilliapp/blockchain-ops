@@ -207,11 +207,13 @@ object AddressFilter extends StreamTrait {
                     query = None,
                   )
                 )
-                dataProviderCursorCache.insert(key, dpc) *> F.pure(Right(dpc))
+                dataProviderCursorCache.insert(key, dpc) *>
+                  F.pure(log.info(s"Resuming address ${adt.address} at cursor=${dpc.cursor} (from mongo)")) *>
+                  F.pure(Right(dpc))
               case Left(err) => F.pure(Left(err))
             }
         case Some(cursor) => {
-          F.pure(log.info(s"Starting address ${adt.address} at cursor=${cursor.cursor}")) *>
+          F.pure(log.info(s"Resuming address ${adt.address} at cursor=${cursor.cursor}  (from mem cache)")) *>
             F.pure(Right(cursor))
         }
       }
@@ -270,7 +272,7 @@ object AddressFilter extends StreamTrait {
     outputTopic: OutputTopic,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val trackingId = record.value.header.trackingId
-    val sourcedTime = Instant.now.toEpochMilli
+    val sourcedTime = Instant.now
     val requests = addressRequests.map {
       ar =>
         val tilliJsonEvent = TilliJsonEvent(
@@ -301,7 +303,7 @@ object AddressFilter extends StreamTrait {
     val newAssetContractHolderRequest = request.copy(attempt = request.attempt + 1)
     val newRequestTilliJsonEvent = record.value.copy(
       header = record.value.header.copy(
-        eventTimestamp = Instant.now().toEpochMilli,
+        eventTimestamp = Instant.now(),
         eventId = UUID.randomUUID(),
       ),
       data = newAssetContractHolderRequest.asJson

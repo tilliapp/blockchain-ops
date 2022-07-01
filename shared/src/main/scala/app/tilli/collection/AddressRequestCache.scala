@@ -36,7 +36,7 @@ class AddressRequestCache[F[_] : Sync](
           Sync[F].delay(log.info(s"Memory Cache miss: $key")) *>
             lookupInBackend(key, collection)
               .flatTap(res =>
-                if (res.nonEmpty) Sync[F].delay(log.info(s"Mongo Cache hit: $key"))
+                if (res.exists(_.nonEmpty)) Sync[F].delay(log.info(s"Mongo Cache hit: $key"))
                 else Sync[F].delay(log.info(s"Mongo Cache miss: $key"))
               )
       }
@@ -95,7 +95,7 @@ class AddressRequestCache[F[_] : Sync](
     collection
       .replaceOne(
         filter = Filter.eq("key", k)
-          .and(Filter.lt("createdAt", now.toEpochMilli)),
+          .and(Filter.lt("createdAt", now)),
         replacement = addressRequestRecord,
         options = ReplaceOptions().upsert(true),
       )

@@ -26,7 +26,8 @@ object BlockchainSinkService extends IOApp {
       "ssl.endpoint.identification.algorithm" -> "",
     )
 
-    import mongo4cats.circe._
+    import app.tilli.blockchain.codec.BlockchainCodec._
+    import app.tilli.blockchain.codec.BlockchainMongodbCodec._
     val resources = for {
       appConfig <- ApplicationConfig()
       mongoClient <- MongoDbAdapter.resource(appConfig.mongoDbConfig.url)
@@ -53,7 +54,7 @@ object BlockchainSinkService extends IOApp {
 
   def httpServer[F[_] : Async](implicit r: Resources[F]): F[Unit] =
     BlazeServer
-      .serverWithHealthCheck(r.httpServerPort)
+      .serverWithHealthCheck(8081)
       .serve
       .compile
       .drain

@@ -84,7 +84,7 @@ object AssetContractEventReader extends StreamTrait {
     inputTopic: InputTopic,
     dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    val sourcedTime = Instant.now.toEpochMilli
+    val sourcedTime = Instant.now
     val trackingId = UUID.randomUUID()
     val producerRecords = assetContractEvents.events.map { eventJson =>
       val tilliJsonEvent = TilliJsonEvent(
@@ -123,7 +123,7 @@ object AssetContractEventReader extends StreamTrait {
       val tilliJsonEvent = TilliJsonEvent(
         BlockchainClasses.Header(
           trackingId = trackingId,
-          eventTimestamp = Instant.now().toEpochMilli,
+          eventTimestamp = Instant.now(),
           eventId = UUID.randomUUID(),
           origin = List(
             Origin(
@@ -156,7 +156,7 @@ object AssetContractEventReader extends StreamTrait {
     val newAssetContractHolderRequest = request.copy(attempt = request.attempt + 1)
     val newRequestTilliJsonEvent = record.value.copy(
       header = record.value.header.copy(
-        eventTimestamp = Instant.now().toEpochMilli,
+        eventTimestamp = Instant.now(),
         eventId = UUID.randomUUID(),
       ),
       data = newAssetContractHolderRequest.asJson
