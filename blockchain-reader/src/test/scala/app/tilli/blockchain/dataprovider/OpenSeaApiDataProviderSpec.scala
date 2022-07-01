@@ -400,7 +400,7 @@ object OpenSeaApiDataProviderSpec {
       |  "paymentTokenSymbol" : null,
       |  "paymentTokenDecimals" : null,
       |  "totalPrice" : null,
-      |  "transactionTime" : 1654789065000
+      |  "transactionTime" : "2022-06-09T15:37:45Z"
       |}""".stripMargin
 
   val expectedResult2 =
@@ -419,7 +419,7 @@ object OpenSeaApiDataProviderSpec {
       |  "paymentTokenSymbol" : "ETH",
       |  "paymentTokenDecimals" : 18,
       |  "totalPrice" : "190000000000000000",
-      |  "transactionTime" : 1654789065000
+      |  "transactionTime" : "2022-06-09T15:37:45Z"
       |}""".stripMargin
 
 }

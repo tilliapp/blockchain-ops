@@ -3,6 +3,7 @@ package app.tilli.blockchain.dataprovider
 import app.tilli.api.utils.SimpleHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, dataProviderEtherscan, dataProviderOpenSea}
+import app.tilli.utils.DateUtils
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
 import io.circe.Json
@@ -130,9 +131,7 @@ object OpenSeaApiDataProvider {
       val tokenType = root.asset.assetContract.schemaName.string.getOption(eventJson).map(Json.fromString)
       val tokenId = root.asset.tokenId.string.getOption(eventJson).map(Json.fromString)
       val quantity = root.quantity.string.getOption(eventJson).flatMap(s => Try(s.toLong).toOption.map(Json.fromLong))
-      val transactionTime = root.eventTimestamp.string.getOption(eventJson)
-        .map(ts => if (!ts.toLowerCase.endsWith("z")) s"${ts}Z" else ts)
-        .flatMap(ts => Try(Instant.parse(ts)).toOption).map(_.toEpochMilli).map(Json.fromLong)
+      val transactionTime =  DateUtils.tsToInstant(root.eventTimestamp.string.getOption(eventJson)).map(i => Json.fromString(i.toString))
       val paymentTokenSymbol = root.paymentToken.symbol.string.getOption(eventJson).map(Json.fromString)
       val paymentTokenDecimals = root.paymentToken.decimals.int.getOption(eventJson).map(Json.fromInt)
       val totalPrice = root.totalPrice.string.getOption(eventJson).map(Json.fromString)

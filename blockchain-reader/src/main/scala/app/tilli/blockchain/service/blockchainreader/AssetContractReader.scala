@@ -6,7 +6,7 @@ import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAssetContract, DataTypeAssetContractEventRequest, DataTypeToVersion}
 import app.tilli.blockchain.service.StreamTrait
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
-import app.tilli.utils.{InputTopic, OutputTopic}
+import app.tilli.utils.{DateUtils, InputTopic, OutputTopic}
 import cats.effect.{Async, Sync}
 import fs2.kafka._
 import io.circe.Json
@@ -82,11 +82,11 @@ object AssetContractReader extends StreamTrait {
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val trackingId = record.record.value.header.trackingId
     val key = root.address.string.getOption(result).orNull
-    val sourced = root.sourced.long.getOption(result).getOrElse(Instant.now().toEpochMilli)
+    val sourced = DateUtils.tsToInstant(root.sourced.string.getOption(result)).getOrElse(Instant.now())
     val tilliJsonEvent1 = TilliJsonEvent(
       BlockchainClasses.Header(
         trackingId = trackingId,
-        eventTimestamp = Instant.now().toEpochMilli,
+        eventTimestamp = Instant.now(),
         eventId = UUID.randomUUID(),
         origin = record.record.value.header.origin ++ List(
           Origin(
@@ -111,7 +111,7 @@ object AssetContractReader extends StreamTrait {
     val tilliJsonEvent2 = TilliJsonEvent(
       BlockchainClasses.Header(
         trackingId = trackingId,
-        eventTimestamp = Instant.now().toEpochMilli,
+        eventTimestamp = Instant.now(),
         eventId = UUID.randomUUID(),
         origin = List(
           Origin(

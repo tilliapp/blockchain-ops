@@ -9,9 +9,10 @@ import cats.Parallel
 import cats.effect.{Async, Sync}
 import fs2.Chunk
 import fs2.kafka._
-import io.circe.Json
+import io.circe.generic.semiauto.deriveCodec
+import io.circe.{Codec, Json}
 import io.circe.optics.JsonPath.root
-import mongo4cats.collection.{BulkWriteOptions, UpdateOptions, WriteCommand}
+import mongo4cats.collection.{BulkWriteOptions, ReplaceOptions, WriteCommand}
 
 import java.time.Instant
 import java.util.UUID
@@ -50,8 +51,7 @@ object BlockchainSink extends Logging {
       .map { json =>
         val Right(record) = json.as[TransactionRecordData](codecTransactionRecordData)
         TransactionRecord(
-          transactionTime = record.transactionTime,
-          key = getKey(json),
+          key = getKey(json).get,// TODO: This is gonna blow up for sure
           data = record,
         )
       }
@@ -73,10 +73,10 @@ object BlockchainSink extends Logging {
     import mongo4cats.collection.operations._
 
     val commands = data.map(t =>
-      WriteCommand.UpdateOne(
-        filter = Filter.eq("data.key", t.key.get),
-        update = Update.set("data", t),
-        options = UpdateOptions().upsert(true),
+      WriteCommand.ReplaceOne(
+        filter = Filter.eq("key", t.key),
+        replacement = t,
+        options = ReplaceOptions().upsert(true),
       )
     )
     resources.transactionCollection
@@ -106,7 +106,7 @@ object BlockchainSink extends Logging {
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val errorEvent = record.value.copy(
       header = record.value.header.copy(
-        eventTimestamp = Instant.now().toEpochMilli,
+        eventTimestamp = Instant.now,
         eventId = UUID.randomUUID(),
         origin = record.value.header.origin
       ),
@@ -193,12 +193,11 @@ object BlockchainSink extends Logging {
     val commands = data
       .map(DataProviderCursorRecord(_))
       .map(cursor =>
-        WriteCommand.UpdateOne(
-          filter =
-            Filter.eq("data.key", cursor.key).and(
-              Filter.lt("data.data.createdAt", cursor.data.createdAt.getOrElse(Long.MinValue))),
-          update = Update.set("data", cursor),
-          options = UpdateOptions().upsert(true),
+        WriteCommand.ReplaceOne(
+          filter = Filter.eq("key", cursor.key),
+//            .and(Filter.lt("data.createdAt", cursor.data.createdAt)),
+          replacement = cursor,
+          options = ReplaceOptions().upsert(true),
         )
       )
     resources.dataProviderCursorCollection

@@ -2,7 +2,7 @@ package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.BlazeServer
 import app.tilli.api.utils.BlazeHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.{AddressRequest, AddressSimple, DataProviderCursor, DataProviderCursorRecord}
+import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.dataprovider.{ColaventHqDataProvider, EtherscanDataProvider, OpenSeaApiDataProvider}
 import app.tilli.blockchain.service.blockchainreader
@@ -12,7 +12,6 @@ import app.tilli.persistence.kafka.SslConfig
 import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
-import io.circe.Json
 import upperbound.Limiter
 
 import scala.concurrent.duration.DurationInt
@@ -34,7 +33,9 @@ object BlockchainReaderService extends IOApp {
       "ssl.endpoint.identification.algorithm" -> "",
     )
 
-    import mongo4cats.circe._
+//    import mongo4cats.circe._
+    import app.tilli.blockchain.codec.BlockchainCodec._
+    import app.tilli.blockchain.codec.BlockchainMongodbCodec._
     val resources = for {
       appConfig <- ApplicationConfig()
       httpClient <- BlazeHttpClient.clientWithRetry(appConfig.httpClientConfig)
@@ -59,14 +60,14 @@ object BlockchainReaderService extends IOApp {
 
       mongoClient <- MongoDbAdapter.resource(appConfig.mongoDbConfig.url)
       mongoDatabase <- Resource.eval(mongoClient.getDatabase(appConfig.mongoDbConfig.db))
-      dataProviderCursorCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[Json](appConfig.mongoDbCollectionDataProviderCursor))
-      addressRequestCacheCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[Json](appConfig.mongoDbCollectionAddressRequestCache))
+      dataProviderCursorCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[DataProviderCursorRecord](appConfig.mongoDbCollectionDataProviderCursor))
+      addressRequestCacheCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[AddressRequestRecord](appConfig.mongoDbCollectionAddressRequestCache))
 
       addressTypeCache <- MemCache.resource[IO, String, AddressSimple](duration = 365.days)
-      addressRequestMemCache <- MemCache.resource[IO, String, AddressRequest](duration = 15.minutes)
+      addressRequestMemCache <- MemCache.resource[IO, String, AddressRequest](duration = 30.seconds)
       addressRequestCache = new AddressRequestCache[IO](addressRequestMemCache, addressRequestCacheCollection)
 
-      dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 2.hours)
+      dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 30.seconds)
 
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
 

@@ -52,7 +52,7 @@ object TransactionEventReader extends StreamTrait {
                   .map {
                     case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopicTransaction, outputTopicCursorEvent, inputTopic, r.transactionEventSource)
                     case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.transactionEventSource)
-                  }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
+                  }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId} address=${root.data.address.string.getOption(committable.record.value.data)}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
               }
             }.parJoinUnbounded
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
@@ -84,7 +84,7 @@ object TransactionEventReader extends StreamTrait {
     inputTopic: InputTopic,
     dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    val sourcedTime = Instant.now.toEpochMilli
+    val sourcedTime = Instant.now
     val trackingId = record.value.header.trackingId
     val transactionalProducerRecords = transactionEventsResults
       .events
@@ -127,7 +127,7 @@ object TransactionEventReader extends StreamTrait {
       val tilliJsonEvent = TilliJsonEvent(
         BlockchainClasses.Header(
           trackingId = trackingId,
-          eventTimestamp = Instant.now().toEpochMilli,
+          eventTimestamp = Instant.now,
           eventId = UUID.randomUUID(),
           origin = List(
             Origin(
@@ -151,7 +151,7 @@ object TransactionEventReader extends StreamTrait {
       val tilliJsonEvent = TilliJsonEvent(
         BlockchainClasses.Header(
           trackingId = trackingId,
-          eventTimestamp = Instant.now().toEpochMilli,
+          eventTimestamp = Instant.now,
           eventId = UUID.randomUUID(),
           origin = List(
             Origin(
@@ -183,7 +183,7 @@ object TransactionEventReader extends StreamTrait {
     val newAssetContractHolderRequest = request.copy(attempt = request.attempt + 1)
     val newRequestTilliJsonEvent = record.value.copy(
       header = record.value.header.copy(
-        eventTimestamp = Instant.now().toEpochMilli,
+        eventTimestamp = Instant.now,
         eventId = UUID.randomUUID(),
       ),
       data = newAssetContractHolderRequest.asJson

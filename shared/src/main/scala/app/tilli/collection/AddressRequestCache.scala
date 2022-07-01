@@ -1,24 +1,22 @@
 package app.tilli.collection
 
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.codec.BlockchainCodec._
+import app.tilli.logging.Logging
 import cats.MonadThrow
 import cats.data.EitherT
 import cats.effect.Sync
 import cats.implicits._
-import io.circe.Json
-import io.circe.optics.JsonPath.root
-import io.circe.syntax.EncoderOps
-import mongo4cats.collection.{MongoCollection, UpdateOptions}
 import mongo4cats.collection.operations.{Filter, Sort}
+import mongo4cats.collection.{MongoCollection, ReplaceOptions}
 
 import java.time.Instant
 
 class AddressRequestCache[F[_] : Sync](
   protected val memoryCache: io.chrisdavenport.mules.Cache[F, String, AddressRequest],
-  protected val collection: MongoCollection[F, Json],
+  protected val collection: MongoCollection[F, AddressRequestRecord],
 ) extends Cache[String, AddressRequest]
-  with CacheBackendMongoDb[F] {
+  with CacheBackendMongoDb[F]
+  with Logging {
 
   def recordKey(addressRequest: AddressRequest): String = AddressRequest.key(addressRequest)
 
@@ -31,8 +29,16 @@ class AddressRequestCache[F[_] : Sync](
     memoryCache
       .lookup(key)
       .flatMap {
-        case Some(ar) => Sync[F].pure(Right(Some(ar)))
-        case None => lookupInBackend(key, collection)
+        case Some(ar) =>
+          Sync[F].delay(log.info(s"Memory Cache hit: $key")) *>
+            Sync[F].pure(Right(Some(ar)))
+        case None =>
+          Sync[F].delay(log.info(s"Memory Cache miss: $key")) *>
+            lookupInBackend(key, collection)
+              .flatTap(res =>
+                if (res.exists(_.nonEmpty)) Sync[F].delay(log.info(s"Mongo Cache hit: $key"))
+                else Sync[F].delay(log.info(s"Mongo Cache miss: $key"))
+              )
       }
   }
 
@@ -49,7 +55,7 @@ class AddressRequestCache[F[_] : Sync](
     val chain = {
       for {
         bc <- EitherT(updateInBackend(k, v, collection))
-        _ <- EitherT(memoryCache.insert(k, v).attempt)
+        mc <- EitherT(memoryCache.insert(k, v).attempt)
       } yield bc
     }
     chain.value
@@ -57,46 +63,41 @@ class AddressRequestCache[F[_] : Sync](
 
   protected def lookupInBackend(
     k: String,
-    collection: MongoCollection[F, Json],
+    collection: MongoCollection[F, AddressRequestRecord],
   )(implicit
     F: MonadThrow[F],
   ): F[Either[Throwable, Option[AddressRequest]]] = {
     import cats.implicits._
     collection
       .find
-      .sort(Sort.desc("data.data.createdAt"))
-      .filter(Filter.eq("data.key", k))
+      .sort(Sort.desc("createdAt"))
+      .filter(Filter.eq("key", k))
       .first
       .attempt
-      .map(_.map(_.flatMap(j => root.data.json.getOption(j).map(_.as[AddressRequestRecord]))))
-      .flatMap {
-        case Right(result) =>
-          F.pure(
-            result
-              .map(_.leftMap(err => new IllegalStateException(s"Could not deserialize AddressRequestRecord for key $k", err)))
-              .sequence.asInstanceOf[Either[Throwable, Option[AddressRequest]]]
-          )
-        case Left(err) => F.pure(Left(err))
-      }
+      .map(_.map(_.map(_.data)))
   }
 
   protected def updateInBackend(
     k: String,
     v: AddressRequest,
-    collection: MongoCollection[F, Json],
+    collection: MongoCollection[F, AddressRequestRecord],
     now: Instant = Instant.now,
   )(implicit
     F: MonadThrow[F],
   ): F[Either[Throwable, Boolean]] = {
     import cats.implicits._
     import mongo4cats.collection.operations._
-    import mongo4cats.circe._
+    val addressRequestRecord = AddressRequestRecord(
+      createdAt = now,
+      key = k,
+      data = v,
+    )
     collection
-      .updateOne(
-        filter = Filter.eq("data.key", k)
-          .and(Filter.lt("data.createdAt", now.toEpochMilli)),
-        update = Update.set("data", v.asJson),
-        options = UpdateOptions().upsert(true),
+      .replaceOne(
+        filter = Filter.eq("key", k)
+          .and(Filter.lt("createdAt", now)),
+        replacement = addressRequestRecord,
+        options = ReplaceOptions().upsert(true),
       )
       .attempt
       .map(_.map(_.wasAcknowledged()))

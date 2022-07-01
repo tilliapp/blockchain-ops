@@ -94,12 +94,12 @@ object BlockchainClasses {
   case class Origin(
     source: Option[UUID],
     provider: Option[UUID],
-    sourcedTimestamp: Long,
+    sourcedTimestamp: Instant,
   )
 
   case class Header(
     trackingId: UUID,
-    eventTimestamp: Long,
+    eventTimestamp: Instant,
     eventId: UUID,
     origin: List[Origin],
     dataType: Option[String],
@@ -151,7 +151,7 @@ object BlockchainClasses {
     address: String,
     cursor: Option[String],
     query: Option[String],
-    createdAt: Option[Long] = Option(Instant.now.toEpochMilli),
+    createdAt: Instant = Instant.now,
   )
 
   object DataProviderCursor {
@@ -199,15 +199,16 @@ object BlockchainClasses {
   object AddressRequest {
 
     def key(addressRequest: AddressRequest): String = {
-      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage}"
+//      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage.getOrElse(addressRequest.dataProvider.defaultPage)}"
+      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}"
     }
 
   }
 
   case class AddressRequestRecord(
-    createdAt: Instant,
     key: String,
-    addressRequest: AddressRequest,
+    data: AddressRequest,
+    createdAt: Instant = Instant.now,
   )
 
   case class AddressSimple(
@@ -238,14 +239,15 @@ object BlockchainClasses {
   )
 
   case class TransactionRecord(
-    transactionTime: Option[Instant],
-    key: Option[String],
+    key: String,
     data: TransactionRecordData,
+    createdAt: Instant = Instant.now,
   )
 
   case class DataProviderCursorRecord(
     key: String,
     data: DataProviderCursor,
+    createdAt: Instant = Instant.now,
   )
 
   object DataProviderCursorRecord {

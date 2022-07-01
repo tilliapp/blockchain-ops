@@ -1,23 +1,15 @@
 package app.tilli.blockchain.codec
 
-import app.tilli.blockchain.codec.BlockchainClasses._
+import app.tilli.blockchain.codec.BlockchainClasses.{AddressRequest, AddressRequestRecord, AssetContractHolderRequest, DataProvider, DataProviderCursor, DataProviderCursorRecord, Header, HttpClientError, Origin, TilliDataProviderError, TilliJsonEvent, TransactionEventsResult, TransactionRecord, TransactionRecordData}
 import app.tilli.blockchain.codec.BlockchainConfig.EventType
-import app.tilli.serializer.Fs2KafkaCodec
-import app.tilli.serializer.Fs2KafkaCodec.{classDeserializer, jsonDeserializer}
-import cats.effect.IO
-import fs2.kafka.{Deserializer, Serializer}
+import io.circe.Codec
 import io.circe.Decoder.decodeEnumeration
 import io.circe.Encoder.encodeEnumeration
 import io.circe.generic.semiauto.deriveCodec
-import io.circe.{Codec, Decoder, Json}
 import mongo4cats.circe.MongoJsonCodecs
 
-import java.time.Instant
-import scala.util.Try
+object BlockchainMongodbCodec extends MongoJsonCodecs {
 
-object  BlockchainCodec {
-
-  // Circe
   implicit lazy val codecHeader: Codec[Header] = deriveCodec
   implicit lazy val codecOrigin: Codec[Origin] = deriveCodec
   implicit lazy val codecTilliJsonEvent: Codec[TilliJsonEvent] = deriveCodec
@@ -36,23 +28,13 @@ object  BlockchainCodec {
   implicit lazy val decoderEventType = decodeEnumeration(EventType)
   implicit lazy val encoderEventType = encodeEnumeration(EventType)
 
-  // FS kafka
-  implicit val deserializerJson: Deserializer[IO, Json] = jsonDeserializer
-  implicit val deserializerTilliJsonEvent: Deserializer[IO, TilliJsonEvent] = classDeserializer
-
-  implicit val serializerJson: Serializer[IO, Json] = Fs2KafkaCodec.serializer
-  implicit val serializerTilliJsonEvent: Serializer[IO, TilliJsonEvent] = Fs2KafkaCodec.serializer
-
-  implicit val serializerTilliDataProviderError: Serializer[IO, TilliDataProviderError] = Fs2KafkaCodec.serializer
-
-  object InstantFromLongDecoder {
-
-      implicit val decodeInstantFromLong: Decoder[Instant] = Decoder.decodeLong.emapTry { str =>
-        Try(Instant.ofEpochMilli(str))
-      }
-
-  }
+  //  implicit val decodeInstantFromString: Decoder[Instant] = Decoder.decodeString.emapTry { str =>
+  //    Try(Instant.parse(str))
+  //  }
+  implicit lazy val codecAddressRequestRecord: Codec[AddressRequestRecord] = deriveCodec
+  implicit lazy val codecTransactionRecord: Codec[TransactionRecord] = deriveCodec
+  implicit lazy val codecDataProviderCursorRecord: Codec[DataProviderCursorRecord] = deriveCodec
 
 }
 
-//object BlockchainCodec extends BlockchainCodec
+//object BlockchainMongodbCodec extends BlockchainMongodbCodec
