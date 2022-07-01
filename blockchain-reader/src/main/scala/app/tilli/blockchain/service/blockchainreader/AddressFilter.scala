@@ -77,7 +77,7 @@ object AddressFilter extends StreamTrait {
     dataProviderCursorCache: Cache[F, String, DataProviderCursor],
     assetContractTypeSource: AssetContractTypeSource[F],
     dataProvider: DataProvider,
-    dataProviderCursorCollection: MongoCollection[F, Json],
+    dataProviderCursorCollection: MongoCollection[F, DataProviderCursorRecord],
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, List[AddressRequest]]] = {
     val blockChain = root.chain.string.getOption(record.value.data)
@@ -130,7 +130,7 @@ object AddressFilter extends StreamTrait {
     dataProviderCursorCache: Cache[F, String, DataProviderCursor],
     assetContractTypeSource: AssetContractTypeSource[F],
     dataProvider: DataProvider,
-    dataProviderCursorCollection: MongoCollection[F, Json],
+    dataProviderCursorCollection: MongoCollection[F, DataProviderCursorRecord],
     rateLimiter: Limiter[F],
   )(implicit
     F: MonadThrow[F],
@@ -186,7 +186,7 @@ object AddressFilter extends StreamTrait {
     adt: AddressSimple,
     dataProvider: DataProvider,
     dataProviderCursorCache: Cache[F, String, DataProviderCursor],
-    dataProviderCursorCollection: MongoCollection[F, Json],
+    dataProviderCursorCollection: MongoCollection[F, DataProviderCursorRecord],
   )(implicit
     F: MonadThrow[F],
   ): F[Either[Throwable, DataProviderCursor]] = {
@@ -199,7 +199,7 @@ object AddressFilter extends StreamTrait {
           getDataProviderCursor(adt.address, dataProviderCursorCollection, dataProvider)
             .flatMap {
               case Right(dpcOpt) =>
-                val dpc = dpcOpt.map(_.data).getOrElse(
+                val dpc = dpcOpt.getOrElse(
                   DataProviderCursor(
                     dataProvider = dataProvider,
                     address = adt.address,
@@ -247,29 +247,20 @@ object AddressFilter extends StreamTrait {
 
   def getDataProviderCursor[F[_]](
     address: String,
-    dataProviderCursorCollection: MongoCollection[F, Json],
+    dataProviderCursorCollection: MongoCollection[F, DataProviderCursorRecord],
     dataProvider: DataProvider,
   )(implicit
     F: MonadThrow[F],
-  ): F[Either[Throwable, Option[DataProviderCursorRecord]]] = {
+  ): F[Either[Throwable, Option[DataProviderCursor]]] = {
     import cats.implicits._
     val key = DataProviderCursor.key(address, dataProvider)
     dataProviderCursorCollection
       .find
-      .sort(Sort.desc("data.data.createdAt"))
-      .filter(Filter.eq("data.key", key))
+      .sort(Sort.desc("createdAt"))
+      .filter(Filter.eq("key", key))
       .first
       .attempt
-      .map(_.map(_.flatMap(j => root.data.json.getOption(j).map(_.as[DataProviderCursorRecord]))))
-      .flatMap {
-        case Right(result) =>
-          F.pure(
-            result
-              .map(_.leftMap(err => new IllegalStateException(s"Could not deserialize DataProviderCursorRecord for key $key", err)))
-              .sequence
-          )
-        case Left(err) => F.pure(Left(err))
-      }
+      .map(_.map(_.map(_.data)))
   }
 
   def toProducerRecords[F[_]](

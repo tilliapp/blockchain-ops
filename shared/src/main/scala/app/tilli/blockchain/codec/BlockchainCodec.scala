@@ -30,10 +30,10 @@ object BlockchainCodec extends MongoJsonCodecs{
   implicit lazy val codecTransactionEventsResult: Codec[TransactionEventsResult] = deriveCodec
   implicit lazy val codecAddressRequestRecord: Codec[AddressRequestRecord] = deriveCodec
 
-
-  implicit val decodeInstantFromLong: Decoder[Instant] = Decoder.decodeLong.emapTry { str =>
-    Try(Instant.ofEpochMilli(str))
-  }
+// Dont use this, use the instant field instead as it converts natively to ISODate in mongo
+//  implicit val decodeInstantFromLong: Decoder[Instant] = Decoder.decodeLong.emapTry { str =>
+//    Try(Instant.ofEpochMilli(str))
+//  }
 
   implicit lazy val codecTransactionRecordData: Codec[TransactionRecordData] = deriveCodec
   implicit lazy val codecTransactionRecord: Codec[TransactionRecord] = deriveCodec

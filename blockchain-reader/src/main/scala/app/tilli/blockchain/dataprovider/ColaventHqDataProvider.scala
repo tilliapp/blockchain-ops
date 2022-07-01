@@ -111,7 +111,7 @@ object ColaventHqDataProvider {
         address = address,
         cursor = currentPage,
         query = query,
-        createdAt = Option(Instant.now.toEpochMilli),
+        createdAt = Instant.now,
       )
     )
 

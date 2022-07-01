@@ -52,7 +52,7 @@ object TransactionEventReader extends StreamTrait {
                   .map {
                     case Right(eventsResult) => toProducerRecords(committable.record, committable.offset, eventsResult, outputTopicTransaction, outputTopicCursorEvent, inputTopic, r.transactionEventSource)
                     case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.transactionEventSource)
-                  }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
+                  }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId} address=${root.data.address.string.getOption(committable.record.value.data)}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
               }
             }.parJoinUnbounded
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))

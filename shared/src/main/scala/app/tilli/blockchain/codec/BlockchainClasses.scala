@@ -151,7 +151,7 @@ object BlockchainClasses {
     address: String,
     cursor: Option[String],
     query: Option[String],
-    createdAt: Option[Long] = Option(Instant.now.toEpochMilli),
+    createdAt: Instant = Instant.now,
   )
 
   object DataProviderCursor {
@@ -199,15 +199,21 @@ object BlockchainClasses {
   object AddressRequest {
 
     def key(addressRequest: AddressRequest): String = {
-      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage}"
+//      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage.getOrElse(addressRequest.dataProvider.defaultPage)}"
+      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}"
     }
 
   }
 
+  case class AddressRequestRecordMongoDb(
+    `_id`: String,
+    data: AddressRequestRecord,
+  )
+
   case class AddressRequestRecord(
     createdAt: Instant,
     key: String,
-    addressRequest: AddressRequest,
+    data: AddressRequest,
   )
 
   case class AddressSimple(

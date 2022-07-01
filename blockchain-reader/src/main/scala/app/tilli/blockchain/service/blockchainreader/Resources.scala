@@ -25,5 +25,5 @@ case class Resources(
   addressTypeCache: Cache[IO, String, AddressSimple],
   addressRequestCache: AddressRequestCache[IO],
   dataProviderCursorCache: Cache[IO, String, DataProviderCursor],
-  dataProviderCursorCollection: MongoCollection[IO, Json],
+  dataProviderCursorCollection: MongoCollection[IO, DataProviderCursorRecord],
 )
