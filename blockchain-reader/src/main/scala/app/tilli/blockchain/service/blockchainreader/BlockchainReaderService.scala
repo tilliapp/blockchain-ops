@@ -64,10 +64,9 @@ object BlockchainReaderService extends IOApp {
       addressRequestCacheCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[AddressRequestRecord](appConfig.mongoDbCollectionAddressRequestCache))
 
       addressTypeCache <- MemCache.resource[IO, String, AddressSimple](duration = 365.days)
-      addressRequestMemCache <- MemCache.resource[IO, String, AddressRequest](duration = 30.seconds)
+      addressRequestMemCache <- MemCache.resource[IO, String, AddressRequest](duration = 5.minutes)
       addressRequestCache = new AddressRequestCache[IO](addressRequestMemCache, addressRequestCacheCollection)
-
-      dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 30.seconds)
+      dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 5.minutes)
 
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
 
