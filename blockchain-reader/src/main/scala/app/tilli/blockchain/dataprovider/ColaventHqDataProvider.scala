@@ -1,7 +1,8 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, DataProviderCursor, TilliHttpCallException, TransactionEventSource, TransactionEventsResult}
+import app.tilli.blockchain.codec.BlockchainClasses._
+import app.tilli.blockchain.codec.BlockchainCodec
 import app.tilli.blockchain.codec.BlockchainConfig._
 import app.tilli.blockchain.dataprovider.ColaventHqDataProvider._
 import app.tilli.utils.DateUtils
@@ -52,7 +53,7 @@ class ColaventHqDataProvider[F[_] : Sync](
     val pageNumber = page.getOrElse(defaultPage)
     val queryParams = Map(
       "key" -> apiKey,
-      "page-size" -> "100",
+      "page-size" -> "30",
       "block-signed-at-asc" -> "true", // use this to ensure that data is returned chronologically asc
       "page-number" -> pageNumber,
     )
