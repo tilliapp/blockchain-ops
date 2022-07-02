@@ -27,11 +27,11 @@ trait StreamTrait extends Logging {
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
 
     val attempts = attemptCount(committable.record.value)
-    val failedDueToMaxAttempts = attempts.exists(moveToError)
+    val tooManyAttempts = attempts.exists(moveToError)
 
     throwable match {
       case ex: TilliHttpCallException =>
-        if (failedDueToMaxAttempts) {
+        if (tooManyAttempts) {
           log.error(s"Call aborted after ${attempts} attempts (moving to error queue: ${outputTopicFailure.name}. Query: ${ex.query}")
           toErrorProducerRecords(
             record = committable.record,
@@ -42,33 +42,31 @@ trait StreamTrait extends Logging {
             dataProvider = dataProvider,
           )
         } else {
-          log.info(s"Unknown error occurred. ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
-          toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
-        }
+          Option(ex.getCause) match {
 
-      case ex => ex match {
-        case timeoutException: java.util.concurrent.TimeoutException =>
-          log.warn(s"Request timed out with message ${timeoutException.getMessage}. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
-          toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
-
-        case httpClientError: HttpClientError =>
-          httpClientError.code match {
-            case x if x.contains(429) || x.exists(_ >= 500) =>
-              log.warn(s"Request got throttled by data provider. Sending eventId=${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}. Full error: ${httpClientError.asJson.noSpaces} ")
+            case Some(timeoutException: java.util.concurrent.TimeoutException) =>
+              log.warn(s"Request timed out with message ${timeoutException.getMessage}. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
               toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
-            case errCode =>
-              log.error(s"Unrecoverable error ($errCode). Sending eventId=${committable.record.value.header.eventId} to error queue ${outputTopicFailure.name}")
-              toErrorProducerRecords(
-                record = committable.record,
-                offset = committable.offset,
-                request = httpClientError.url,
-                error = Option(throwable.getMessage).orElse(Option(DataError.httpClientError.toString)),
-                outputTopic = outputTopicFailure,
-                dataProvider = dataProvider,
-              )
+
+            case Some(httpClientError: HttpClientError) =>
+              httpClientError.code match {
+                case x if x.contains(429) || x.exists(_ >= 500) =>
+                  log.warn(s"Request got throttled by data provider. Sending eventId=${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}. Full error: ${httpClientError.asJson.noSpaces} ")
+                  toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
+                case errCode =>
+                  log.error(s"Unrecoverable error ($errCode). Sending eventId=${committable.record.value.header.eventId} to error queue ${outputTopicFailure.name}")
+                  toErrorProducerRecords(
+                    record = committable.record,
+                    offset = committable.offset,
+                    request = httpClientError.url,
+                    error = Option(throwable.getMessage).orElse(Option(DataError.httpClientError.toString)),
+                    outputTopic = outputTopicFailure,
+                    dataProvider = dataProvider,
+                  )
+              }
+            case Some(throwable: Throwable) => unknownError(throwable, committable, outputTopicFailure, dataProvider)
           }
-        case throwable: Throwable => unknownError(throwable, committable, outputTopicFailure, dataProvider)
-      }
+        }
 
       case throwable: Throwable => unknownError(throwable, committable, outputTopicFailure, dataProvider)
     }
