@@ -50,8 +50,10 @@ object KeyConverter {
   def snakeCaseToCamelCaseJson(jsonString: String): Either[ParsingFailure, Json] = {
     for {
       json <- parser.parse(jsonString)
-      camelCasedJson = KeyConverter.snakeCaseToCamelCase(json)
+      camelCasedJson = snakeCaseToCamelCaseJson(json)
     } yield camelCasedJson
   }
+
+  def snakeCaseToCamelCaseJson(json: Json): Json = KeyConverter.snakeCaseToCamelCase(json)
 
 }

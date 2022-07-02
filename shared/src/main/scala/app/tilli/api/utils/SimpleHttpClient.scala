@@ -5,7 +5,7 @@ import app.tilli.logging.Logging
 import app.tilli.serializer.KeyConverter
 import cats.effect.Sync
 import cats.implicits._
-import io.circe.{Decoder, Encoder}
+import io.circe.{Decoder, Encoder, Json}
 import org.http4s.client.Client
 import org.http4s.{EntityDecoder, Headers, Request, Uri}
 
@@ -29,14 +29,14 @@ object SimpleHttpClient extends Logging {
     headers: Headers = Headers.empty,
   )(implicit
     client: Client[F],
-    entityDecoder: EntityDecoder[F, String],
+    entityDecoder: EntityDecoder[F, Json],
     decoder: Decoder[A],
   ): F[Either[Throwable, B]] = {
     val Right(uri) = toUri(host, path, queryParams)
 
     val call = {
-      if (headers.isEmpty) client.expectOr[String](uri) _
-      else client.expectOr[String](Request[F](uri = uri, headers = headers)) _
+      if (headers.isEmpty) client.expectOr[Json](uri) _
+      else client.expectOr[Json](Request[F](uri = uri, headers = headers)) _
     }
 
     call { err =>
@@ -55,12 +55,9 @@ object SimpleHttpClient extends Logging {
         )
     }.attempt
       .map(_
-        .flatMap(s => KeyConverter.snakeCaseToCamelCaseJson(s))
-        .flatMap(json =>
-          for {
-            data <- json.as[A]
-          } yield conversion(data)
-        ))
+        .map(s => KeyConverter.snakeCaseToCamelCaseJson(s))
+        .flatMap(json => json.as[A].map(conversion))
+      )
   }
 
   def callPaged[F[_] : Sync, A, B](
@@ -74,7 +71,7 @@ object SimpleHttpClient extends Logging {
     uuid: Option[UUID] = None,
   )(implicit
     client: Client[F],
-    entityDecoder: EntityDecoder[F, String],
+    entityDecoder: EntityDecoder[F, Json],
     decoder: Decoder[A],
     encoder: Encoder[B],
   ): F[List[Either[Throwable, B]]] = {
