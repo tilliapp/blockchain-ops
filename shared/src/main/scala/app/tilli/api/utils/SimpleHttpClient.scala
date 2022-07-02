@@ -55,10 +55,9 @@ object SimpleHttpClient extends Logging {
         )
     }.attempt
       .map(_
-        .flatMap(s => KeyConverter.snakeCaseToCamelCase(s))
-        .flatMap(s =>
+        .flatMap(s => KeyConverter.snakeCaseToCamelCaseJson(s))
+        .flatMap(json =>
           for {
-            json <- io.circe.parser.parse(s)
             data <- json.as[A]
           } yield conversion(data)
         ))

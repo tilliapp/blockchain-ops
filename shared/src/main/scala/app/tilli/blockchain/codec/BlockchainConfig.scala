@@ -76,4 +76,12 @@ object BlockchainConfig {
     Chain.ethereum -> PaymentToken.eth,
   )
 
+  object DataError extends Enumeration {
+    val
+    tooManyAttempts,
+    unknownError,
+    httpClientError
+    = Value
+  }
+
 }

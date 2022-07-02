@@ -1,10 +1,14 @@
 package app.tilli.serializer
 
 import cats.free.Trampoline
-import io.circe.{Json, ParsingFailure, parser}
+import io.circe.{Json, ParsingFailure, Printer, parser}
 import cats.syntax.traverse._
 
 object KeyConverter {
+
+  val noSpaces: Printer = Printer.noSpaces.copy(
+    reuseWriters = true,
+  )
 
   import io.circe.JsonObject
 
@@ -39,7 +43,15 @@ object KeyConverter {
       json <- parser.parse(jsonString)
       camelCasedJson = KeyConverter.snakeCaseToCamelCase(json)
     } yield {
-      camelCasedJson.noSpaces
+      noSpaces.print(camelCasedJson)
     }
   }
+
+  def snakeCaseToCamelCaseJson(jsonString: String): Either[ParsingFailure, Json] = {
+    for {
+      json <- parser.parse(jsonString)
+      camelCasedJson = KeyConverter.snakeCaseToCamelCase(json)
+    } yield camelCasedJson
+  }
+
 }

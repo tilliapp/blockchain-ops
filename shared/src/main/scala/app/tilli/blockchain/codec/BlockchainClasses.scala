@@ -165,6 +165,7 @@ object BlockchainClasses {
   }
 
   case class TransactionEventsResult(
+    query: Option[String],
     events: List[Json],
     nextPage: Option[Int],
     dataProviderCursor: Option[DataProviderCursor],
@@ -199,7 +200,7 @@ object BlockchainClasses {
   object AddressRequest {
 
     def key(addressRequest: AddressRequest): String = {
-//      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage.getOrElse(addressRequest.dataProvider.defaultPage)}"
+      //      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage.getOrElse(addressRequest.dataProvider.defaultPage)}"
       s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}"
     }
 
@@ -266,4 +267,16 @@ object BlockchainClasses {
     dataSource: Option[UUID],
     dataProvider: Option[UUID],
   )
+
+  trait TilliException extends Throwable
+
+  class TilliHttpCallException(
+    val query: Option[String],
+    val cause: Throwable,
+  ) extends TilliException
+
+  class MaxHttpCallAttemptsReachedException(
+    val attempts: Option[Int],
+    val cause: TilliHttpCallException,
+  ) extends Throwable
 }

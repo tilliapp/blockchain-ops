@@ -1,18 +1,22 @@
 package app.tilli.blockchain.service
 
-
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.codec.BlockchainConfig._
 import app.tilli.logging.Logging
 import app.tilli.utils.{InputTopic, OutputTopic}
 import fs2.kafka._
+import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
 
 import java.time.Instant
 import java.util.UUID
 
 trait StreamTrait extends Logging {
+
+  def attemptCount(tilliJsonEvent: TilliJsonEvent): Option[Int] = root.attempt.int.getOption(tilliJsonEvent.data)
+
+  def moveToError(count: Int): Boolean = count >= 10
 
   def handleDataProviderError[F[_]](
     committable: CommittableConsumerRecord[F, String, TilliJsonEvent],
@@ -21,38 +25,70 @@ trait StreamTrait extends Logging {
     outputTopicFailure: OutputTopic,
     dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    throwable match {
-      case timeoutException: java.util.concurrent.TimeoutException =>
-        log.warn(s"Request timed out with message ${timeoutException.getMessage}. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
-        toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
 
-      case httpClientError: HttpClientError =>
-        httpClientError.code match {
-          case x if x.contains(429) || x.exists(_ >= 500) =>
-            log.warn(s"Request got throttled by data provider. Sending eventId=${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}. Full error: ${httpClientError.asJson.noSpaces} ")
-            toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
-          case errCode =>
-            log.error(s"Unrecoverable error ($errCode). Sending eventId=${committable.record.value.header.eventId} to error queue ${outputTopicFailure.name}")
-            toErrorProducerRecords(
-              record = committable.record,
-              offset = committable.offset,
-              request = httpClientError.url,
-              error = Option(throwable.getMessage),
-              outputTopic = outputTopicFailure,
-              dataProvider = dataProvider,
-            )
+    val attempts = attemptCount(committable.record.value)
+    val failedDueToMaxAttempts = attempts.exists(moveToError)
+
+    throwable match {
+      case ex: TilliHttpCallException =>
+        if (failedDueToMaxAttempts) {
+          log.error(s"Call aborted after ${attempts} attempts (moving to error queue: ${outputTopicFailure.name}. Query: ${ex.query}")
+          toErrorProducerRecords(
+            record = committable.record,
+            offset = committable.offset,
+            request = ex.query,
+            error = Option(DataError.tooManyAttempts.toString),
+            outputTopic = outputTopicFailure,
+            dataProvider = dataProvider,
+          )
+        } else {
+          log.info(s"Unknown error occurred. ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
+          toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
         }
-      case throwable: Throwable =>
-        log.error(s"Unknown Error occurred: ${throwable.getMessage}: $throwable")
-        toErrorProducerRecords(
-          record = committable.record,
-          offset = committable.offset,
-          request = None,
-          error = Option(throwable.getMessage),
-          outputTopic = outputTopicFailure,
-          dataProvider = dataProvider,
-        )
+
+      case ex => ex match {
+        case timeoutException: java.util.concurrent.TimeoutException =>
+          log.warn(s"Request timed out with message ${timeoutException.getMessage}. Sending event ${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}")
+          toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
+
+        case httpClientError: HttpClientError =>
+          httpClientError.code match {
+            case x if x.contains(429) || x.exists(_ >= 500) =>
+              log.warn(s"Request got throttled by data provider. Sending eventId=${committable.record.value.header.eventId} back into the input queue ${inputTopic.name}. Full error: ${httpClientError.asJson.noSpaces} ")
+              toRetryPageProducerRecords(committable.record, committable.offset, inputTopic)
+            case errCode =>
+              log.error(s"Unrecoverable error ($errCode). Sending eventId=${committable.record.value.header.eventId} to error queue ${outputTopicFailure.name}")
+              toErrorProducerRecords(
+                record = committable.record,
+                offset = committable.offset,
+                request = httpClientError.url,
+                error = Option(throwable.getMessage).orElse(Option(DataError.httpClientError.toString)),
+                outputTopic = outputTopicFailure,
+                dataProvider = dataProvider,
+              )
+          }
+        case throwable: Throwable => unknownError(throwable, committable, outputTopicFailure, dataProvider)
+      }
+
+      case throwable: Throwable => unknownError(throwable, committable, outputTopicFailure, dataProvider)
     }
+  }
+
+  def unknownError[F[_]](
+    throwable: Throwable,
+    committable: CommittableConsumerRecord[F, String, TilliJsonEvent],
+    outputTopicFailure: OutputTopic,
+    dataProvider: DataProviderTrait,
+  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
+    log.error(s"Unknown Error occurred: ${throwable.getMessage}: $throwable")
+    toErrorProducerRecords(
+      record = committable.record,
+      offset = committable.offset,
+      request = None,
+      error = Option(throwable.getMessage),
+      outputTopic = outputTopicFailure,
+      dataProvider = dataProvider,
+    )
   }
 
   def toRetryPageProducerRecords[F[_]](
