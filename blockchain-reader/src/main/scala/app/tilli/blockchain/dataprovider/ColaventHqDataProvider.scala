@@ -1,7 +1,8 @@
 package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
-import app.tilli.blockchain.codec.BlockchainClasses.{DataProvider, DataProviderCursor, TransactionEventSource, TransactionEventsResult}
+import app.tilli.blockchain.codec.BlockchainClasses._
+import app.tilli.blockchain.codec.BlockchainCodec
 import app.tilli.blockchain.codec.BlockchainConfig._
 import app.tilli.blockchain.dataprovider.ColaventHqDataProvider._
 import app.tilli.utils.DateUtils
@@ -52,10 +53,11 @@ class ColaventHqDataProvider[F[_] : Sync](
     val pageNumber = page.getOrElse(defaultPage)
     val queryParams = Map(
       "key" -> apiKey,
-      "page-size" -> "100",
+      "page-size" -> "30",
       "block-signed-at-asc" -> "true", // use this to ensure that data is returned chronologically asc
       "page-number" -> pageNumber,
     )
+    val query = SimpleHttpClient.toUri(host, path, queryParams).toOption.map(_.renderString)
     val chain = for {
       result <- EitherT(rateLimiter.submit(
         SimpleHttpClient
@@ -75,15 +77,21 @@ class ColaventHqDataProvider[F[_] : Sync](
           address = address,
           dataProvider = this,
           currentPage = Option(pageNumber),
-          query = SimpleHttpClient.toUri(host, path, queryParams).toOption.map(_.renderString),
+          query = query,
         )
       TransactionEventsResult(
+        query = query,
         events = events,
         nextPage = nextPage,
         dataProviderCursor = dataProviderCursor,
       )
     }
-    chain.value
+    chain
+      .leftMap(err => new TilliHttpCallException(
+        query,
+        err,
+      ))
+      .value.asInstanceOf[F[Either[Throwable, TransactionEventsResult]]]
   }
 }
 

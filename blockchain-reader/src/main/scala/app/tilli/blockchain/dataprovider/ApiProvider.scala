@@ -11,6 +11,7 @@ trait ApiProvider[F[_]] extends DataProviderTrait {
   def concurrent: Concurrent[F]
 
   implicit def entityDecoderString: EntityDecoder[F, String] = EntityDecoder.text(concurrent)
+  implicit def entityDecoderJson: EntityDecoder[F, Json] = org.http4s.circe.jsonDecoder(concurrent)
 
   implicit def decoderJson: Decoder[Json] = Decoder.decodeJson
 
