@@ -65,6 +65,8 @@ trait StreamTrait extends Logging {
                   )
               }
             case Some(throwable: Throwable) => unknownError(throwable, committable, outputTopicFailure, dataProvider)
+            case None => unknownError(throwable, committable, outputTopicFailure, dataProvider)
+
           }
         }
 
