@@ -40,7 +40,7 @@ class AddressRequestCache[F[_] : Sync](
         //              .flatTap(res =>
         //                if (res.exists(_.nonEmpty)) Sync[F].delay(log.info(s"Mongo Cache hit: $key"))
         //                else Sync[F].delay(log.info(s"Mongo Cache miss: $key"))
-        )
+//        )
         //          }
       }
   }
