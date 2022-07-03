@@ -28,7 +28,8 @@ val sharedSettings: Seq[Def.Setting[_]] = Seq(
 lazy val root = (project in file("."))
   .aggregate(
     shared,
-    blockchainReader,
+    blockchainContractReader,
+    blockchainTransactionReader,
     blockchainSink,
   )
 
@@ -45,7 +46,7 @@ lazy val shared = (project in file("shared"))
     libraryDependencies ++= Dependencies.cloudDependencies,
   )
 
-lazy val blockchainReader = (project in file("blockchain-contract-reader"))
+lazy val blockchainContractReader = (project in file("blockchain-contract-reader"))
   .settings(
     name := "blockchainContractReader",
     sharedSettings,
