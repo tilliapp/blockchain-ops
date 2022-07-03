@@ -31,17 +31,17 @@ class AddressRequestCache[F[_] : Sync](
       .lookup(key)
       .flatMap {
         case Some(ar) =>
-          Sync[F].delay(log.info(s"Memory Cache hit: $key")) *>
-            Sync[F].pure(Right(Some(ar)))
+          //          Sync[F].delay(log.info(s"Memory Cache hit: $key")) *>
+          Sync[F].pure(Right(Some(ar)))
         case None =>
-          Sync[F].delay(log.info(s"Memory Cache miss: $key")) *> {
-            if (!useBackend) Sync[F].pure(Right(None))
-            else lookupInBackend(key, collection)
-              .flatTap(res =>
-                if (res.exists(_.nonEmpty)) Sync[F].delay(log.info(s"Mongo Cache hit: $key"))
-                else Sync[F].delay(log.info(s"Mongo Cache miss: $key"))
-              )
-          }
+          //          Sync[F].delay(log.info(s"Memory Cache miss: $key")) *> {
+          if (!useBackend) Sync[F].pure(Right(None))
+          else lookupInBackend(key, collection)
+        //              .flatTap(res =>
+        //                if (res.exists(_.nonEmpty)) Sync[F].delay(log.info(s"Mongo Cache hit: $key"))
+        //                else Sync[F].delay(log.info(s"Mongo Cache miss: $key"))
+        )
+        //          }
       }
   }
 
