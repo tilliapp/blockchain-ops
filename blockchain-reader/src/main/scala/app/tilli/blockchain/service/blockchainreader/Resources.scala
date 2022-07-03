@@ -24,6 +24,7 @@ case class Resources(
   assetContractTypeSource: AssetContractTypeSource[IO],
   addressTypeCache: Cache[IO, String, AddressSimple],
   addressRequestCache: AddressRequestCache[IO],
+  addressRequestCacheTransactions: AddressRequestCache[IO],
   dataProviderCursorCache: Cache[IO, String, DataProviderCursor],
   dataProviderCursorCollection: MongoCollection[IO, DataProviderCursorRecord],
 )

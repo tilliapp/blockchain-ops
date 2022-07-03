@@ -64,8 +64,13 @@ object BlockchainReaderService extends IOApp {
       addressRequestCacheCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[AddressRequestRecord](appConfig.mongoDbCollectionAddressRequestCache))
 
       addressTypeCache <- MemCache.resource[IO, String, AddressSimple](duration = 365.days)
+
       addressRequestMemCache <- MemCache.resource[IO, String, AddressRequest](duration = 5.minutes)
       addressRequestCache = new AddressRequestCache[IO](addressRequestMemCache, addressRequestCacheCollection)
+
+      addressRequestMemCacheTransactions <- MemCache.resource[IO, String, AddressRequest](duration = 5.minutes)
+      addressRequestCacheTransactions= new AddressRequestCache[IO](addressRequestMemCacheTransactions, addressRequestCacheCollection)
+
       dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 5.minutes)
 
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
@@ -84,15 +89,16 @@ object BlockchainReaderService extends IOApp {
       assetContractTypeSource = etherscanApi,
       addressTypeCache = addressTypeCache,
       addressRequestCache = addressRequestCache,
+      addressRequestCacheTransactions = addressRequestCacheTransactions,
       dataProviderCursorCache = dataProviderCursorCache,
       dataProviderCursorCollection = dataProviderCursorCollection,
     )
 
     resources.use { implicit r =>
       httpServer &>
-//        AssetContractReader.assetContractRequestsStream(r) &>
-//        AssetContractEventReader.assetContractEventRequestStream(r) &>
-//        AddressFilter.addressFilterStream(r) &>
+        AssetContractReader.assetContractRequestsStream(r) &>
+        AssetContractEventReader.assetContractEventRequestStream(r) &>
+        AddressFilter.addressFilterStream(r) &>
         TransactionEventReader.transactionEventRequestStream(r)
     }.as(ExitCode.Success)
   }

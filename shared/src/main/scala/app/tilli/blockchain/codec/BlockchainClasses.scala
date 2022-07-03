@@ -156,11 +156,21 @@ object BlockchainClasses {
 
   object DataProviderCursor {
 
-    def key(dataProviderCursor: DataProviderCursor): String =
-      key(dataProviderCursor.address, dataProviderCursor.dataProvider)
+    def cursorKey(dataProviderCursor: DataProviderCursor): String =
+      s"${addressKey(dataProviderCursor.address, dataProviderCursor.dataProvider)}|${dataProviderCursor.cursor.getOrElse(dataProviderCursor.dataProvider.defaultPage)}"
 
-    def key(address: String, dataProvider: DataProvider): String =
+    def addressKey(address: String, dataProvider: DataProvider): String =
       s"$address|${dataProvider.source}|${dataProvider.provider}"
+
+    //     def key(dataProviderCursor: DataProviderCursor): String =
+    //      key(
+    //        dataProviderCursor.address,
+    //        dataProviderCursor.cursor.getOrElse(dataProviderCursor.dataProvider.defaultPage),
+    //        dataProviderCursor.dataProvider
+    //      )
+    //
+    //    def key(address: String, page: String, dataProvider: DataProvider): String =
+    //      s"$address|${dataProvider.source}|${dataProvider.provider}|$page"
 
   }
 
@@ -203,6 +213,9 @@ object BlockchainClasses {
       //      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage.getOrElse(addressRequest.dataProvider.defaultPage)}"
       s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}"
     }
+
+    def keyWithPage(addressRequest: AddressRequest): String =
+      s"${addressRequest.address}|${addressRequest.chain}|${addressRequest.dataProvider.source}|${addressRequest.dataProvider.provider}|${addressRequest.nextPage.getOrElse(addressRequest.dataProvider.defaultPage)}"
 
   }
 
@@ -255,7 +268,7 @@ object BlockchainClasses {
 
     def apply(dataProviderCursor: DataProviderCursor): DataProviderCursorRecord =
       DataProviderCursorRecord(
-        key = DataProviderCursor.key(dataProviderCursor),
+        key = DataProviderCursor.cursorKey(dataProviderCursor),
         data = dataProviderCursor,
       )
   }

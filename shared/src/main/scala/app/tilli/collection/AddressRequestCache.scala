@@ -18,12 +18,13 @@ class AddressRequestCache[F[_] : Sync](
   with CacheBackendMongoDb[F]
   with Logging {
 
-  def recordKey(addressRequest: AddressRequest): String = AddressRequest.key(addressRequest)
+  def recordKey(addressRequest: AddressRequest): String = AddressRequest.keyWithPage(addressRequest)
 
   implicit val F: MonadThrow[F] = MonadThrow[F]
 
   def lookup(
     addressRequest: AddressRequest,
+    useBackend: Boolean = true,
   ): F[Either[Throwable, Option[AddressRequest]]] = {
     val key = recordKey(addressRequest)
     memoryCache
@@ -33,17 +34,22 @@ class AddressRequestCache[F[_] : Sync](
           Sync[F].delay(log.info(s"Memory Cache hit: $key")) *>
             Sync[F].pure(Right(Some(ar)))
         case None =>
-          Sync[F].delay(log.info(s"Memory Cache miss: $key")) *>
-            lookupInBackend(key, collection)
+          Sync[F].delay(log.info(s"Memory Cache miss: $key")) *> {
+            if (!useBackend) Sync[F].pure(Right(None))
+            else lookupInBackend(key, collection)
               .flatTap(res =>
                 if (res.exists(_.nonEmpty)) Sync[F].delay(log.info(s"Mongo Cache hit: $key"))
                 else Sync[F].delay(log.info(s"Mongo Cache miss: $key"))
               )
+          }
       }
   }
 
-  def insert(v: AddressRequest): F[Either[Throwable, Boolean]] =
-    insert(recordKey(v), v)
+  def insert(
+    v: AddressRequest,
+    useBackend: Boolean = true,
+  ): F[Either[Throwable, Boolean]] =
+    insert(recordKey(v), v, useBackend)
 
   /**
    * @return true if the backend has received it
@@ -51,10 +57,14 @@ class AddressRequestCache[F[_] : Sync](
   def insert(
     k: String,
     v: AddressRequest,
+    useBackend: Boolean,
   ): F[Either[Throwable, Boolean]] = {
     val chain = {
       for {
-        bc <- EitherT(updateInBackend(k, v, collection))
+        bc <- EitherT(
+          if (!useBackend) Sync[F].pure(Right(false)).asInstanceOf[F[Either[Throwable, Boolean]]]
+          else updateInBackend(k, v, collection)
+        )
         mc <- EitherT(memoryCache.insert(k, v).attempt)
       } yield bc
     }

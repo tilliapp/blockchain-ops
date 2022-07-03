@@ -113,15 +113,6 @@ object AddressFilter extends StreamTrait {
     temp
   }
 
-  // Algo for address transaction pull:
-  // 1. look up to check if address is a contract. If it is, then remove. This should eventually be our own cache but for now ask etherscan
-  // 2. check if we just emitted a request, if we did, then remove (use 1 hour as the deduper)
-  // 3. If it's not a contract and we have not just emitted a request, then submit the latest cursor.
-
-  // TODO: Have the caches upsert to mongo on misses. Store the lookup even if no data returned and let the result age out.
-  //  Only risk is that an insert into mongo wiht a cursor means that we have that data. That may not be true
-  //  But we could upsert into a temporary cache so as to not rely on in memory cache only.
-
   def checkAndInsertIntoCache[F[_] : Sync](
     a: String,
     blockChain: String,
@@ -156,7 +147,7 @@ object AddressFilter extends StreamTrait {
               .flatMap {
                 case Right(adt) => // if the address type is contract then skip
                   if (adt.isContract.contains(false)) {
-                    checkAndInsertDataProviderCursor(adt, dataProvider, dataProviderCursorCache, dataProviderCursorCollection)
+                    checkAndInsertDataProviderCursor(adt.address, dataProvider, dataProviderCursorCache, dataProviderCursorCollection)
                       .map(_.map(Some(_)))
                       .map(_.map(_.map(dpc =>
                         AddressRequest(
@@ -169,7 +160,7 @@ object AddressFilter extends StreamTrait {
                       case Left(err) =>
                         F.raiseError(err)
                       case either@Right(result) =>
-                        result.map(addressRequestCache.insert).getOrElse(F.pure(None)) *> F.pure(either)
+                        result.map(addressRequestCache.insert(_)).getOrElse(F.pure(None)) *> F.pure(either)
                     }
                   } else F.pure(Right(None))
                 case Left(err) => F.pure(Left(err))
@@ -183,7 +174,7 @@ object AddressFilter extends StreamTrait {
   }
 
   def checkAndInsertDataProviderCursor[F[_]](
-    adt: AddressSimple,
+    address: String,
     dataProvider: DataProvider,
     dataProviderCursorCache: Cache[F, String, DataProviderCursor],
     dataProviderCursorCollection: MongoCollection[F, DataProviderCursorRecord],
@@ -191,29 +182,29 @@ object AddressFilter extends StreamTrait {
     F: MonadThrow[F],
   ): F[Either[Throwable, DataProviderCursor]] = {
     import cats.implicits._
-    val key = DataProviderCursor.key(adt.address, dataProvider)
+    val key = DataProviderCursor.addressKey(address, dataProvider)
     dataProviderCursorCache
       .lookup(key)
       .flatMap {
         case None =>
-          getDataProviderCursor(adt.address, dataProviderCursorCollection, dataProvider)
+          getDataProviderCursor(address, dataProviderCursorCollection, dataProvider)
             .flatMap {
               case Right(dpcOpt) =>
                 val dpc = dpcOpt.getOrElse(
                   DataProviderCursor(
                     dataProvider = dataProvider,
-                    address = adt.address,
+                    address = address,
                     cursor = None,
                     query = None,
                   )
                 )
                 dataProviderCursorCache.insert(key, dpc) *>
-                  F.pure(log.info(s"Resuming address ${adt.address} at cursor=${dpc.cursor} (from mongo)")) *>
+                  F.pure(log.info(s"Resuming address ${address} at cursor=${dpc.cursor} (from mongo)")) *>
                   F.pure(Right(dpc))
               case Left(err) => F.pure(Left(err))
             }
         case Some(cursor) => {
-          F.pure(log.info(s"Resuming address ${adt.address} at cursor=${cursor.cursor}  (from mem cache)")) *>
+          F.pure(log.info(s"Resuming address ${address} at cursor=${cursor.cursor}  (from mem cache)")) *>
             F.pure(Right(cursor))
         }
       }
@@ -255,7 +246,7 @@ object AddressFilter extends StreamTrait {
     F: MonadThrow[F],
   ): F[Either[Throwable, Option[DataProviderCursor]]] = {
     import cats.implicits._
-    val key = DataProviderCursor.key(address, dataProvider)
+    val key = DataProviderCursor.addressKey(address, dataProvider)
     dataProviderCursorCollection
       .find
       .sort(Sort.desc("createdAt"))
