@@ -54,7 +54,7 @@ object BlockchainSinkService extends IOApp {
 
   def httpServer[F[_] : Async](implicit r: Resources[F]): F[Unit] =
     BlazeServer
-      .serverWithHealthCheck(8081)
+      .serverWithHealthCheck(r.httpServerPort)
       .serve
       .compile
       .drain
