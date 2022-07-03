@@ -137,7 +137,7 @@ object AddressFilter extends StreamTrait {
 
     addressRequestCache
       .lookup(addressRequestCandidate)
-      .flatTap(r => Sync[F].delay(log.info(s"Cache for $key: $r")))
+//      .flatTap(r => Sync[F].delay(log.info(s"Cache for $key: $r")))
       .flatMap {
         case Left(err) => F.raiseError(err)
         case Right(res) => res match {
@@ -198,7 +198,7 @@ object AddressFilter extends StreamTrait {
                   )
                 )
                 dataProviderCursorCache.insert(key, dpc) *>
-                  F.pure(log.info(s"Resuming address ${address} at cursor=${dpc.cursor} (from mongo)")) *>
+                  F.pure(log.info(s"Resuming address ${address} at cursor=${dpc.cursor} (from mongo or defaulting to first page)")) *>
                   F.pure(Right(dpc))
               case Left(err) => F.pure(Left(err))
             }

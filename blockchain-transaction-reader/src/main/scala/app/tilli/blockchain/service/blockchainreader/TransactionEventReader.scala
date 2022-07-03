@@ -103,7 +103,7 @@ object TransactionEventReader extends StreamTrait {
     val key = AddressRequest.keyWithPage(addressRequest)
     addressRequestCache
       .lookup(addressRequest, useBackend)
-      .flatTap(r => Sync[F].delay(log.info(s"Cache for $key: $r")))
+//      .flatTap(r => Sync[F].delay(log.info(s"Cache for $key: $r")))
       .flatMap {
         case Left(err) => F.raiseError(err)
         case Right(res) => res match {
