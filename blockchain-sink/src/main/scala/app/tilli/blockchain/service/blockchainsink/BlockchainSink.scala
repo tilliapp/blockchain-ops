@@ -195,7 +195,6 @@ object BlockchainSink extends Logging {
       .map(cursor =>
         WriteCommand.ReplaceOne(
           filter = Filter.eq("key", cursor.key),
-//            .and(Filter.lt("data.createdAt", cursor.data.createdAt)),
           replacement = cursor,
           options = ReplaceOptions().upsert(true),
         )

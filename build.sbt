@@ -45,9 +45,9 @@ lazy val shared = (project in file("shared"))
     libraryDependencies ++= Dependencies.cloudDependencies,
   )
 
-lazy val blockchainReader = (project in file("blockchain-reader"))
+lazy val blockchainReader = (project in file("blockchain-contract-reader"))
   .settings(
-    name := "blockchainReader",
+    name := "blockchainContractReader",
     sharedSettings,
     libraryDependencies ++= Dependencies.core,
     libraryDependencies ++= Dependencies.utils,
@@ -55,7 +55,7 @@ lazy val blockchainReader = (project in file("blockchain-reader"))
     libraryDependencies ++= Dependencies.apiDependencies,
     libraryDependencies ++= Dependencies.dataDependencies,
     libraryDependencies ++= Dependencies.serdesDependencies,
-    mainClass in assembly := Some("app.tilli.blockchain.service.blockchainreader.BlockchainReaderService"),
+    mainClass in assembly := Some("app.tilli.blockchain.service.blockchainreader.BlockchainContractReaderService"),
     assemblyJarName in assembly := "run.jar"
   ).dependsOn(shared)
 
@@ -70,5 +70,19 @@ lazy val blockchainSink = (project in file("blockchain-sink"))
     libraryDependencies ++= Dependencies.dataDependencies,
     libraryDependencies ++= Dependencies.serdesDependencies,
     mainClass in assembly := Some("app.tilli.blockchain.service.blockchainsink.BlockchainSinkService"),
+    assemblyJarName in assembly := "run.jar"
+  ).dependsOn(shared)
+
+lazy val blockchainTransactionReader = (project in file("blockchain-transaction-reader"))
+  .settings(
+    name := "blockchainTransactionReader",
+    sharedSettings,
+    libraryDependencies ++= Dependencies.core,
+    libraryDependencies ++= Dependencies.utils,
+    libraryDependencies ++= Dependencies.testDependencies,
+    libraryDependencies ++= Dependencies.apiDependencies,
+    libraryDependencies ++= Dependencies.dataDependencies,
+    libraryDependencies ++= Dependencies.serdesDependencies,
+    mainClass in assembly := Some("app.tilli.blockchain.service.blockchainreader.BlockchainTransactionReaderService"),
     assemblyJarName in assembly := "run.jar"
   ).dependsOn(shared)
