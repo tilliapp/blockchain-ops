@@ -42,15 +42,9 @@ case class AppConfig(
   inputTopicAddressContractEvent: InputTopic,
   outputTopicAddressRequest: OutputTopic,
 
-  inputTopicTransactionEventRequest: InputTopic,
-  outputTopicTransactionEvent: OutputTopic,
-
   outputTopicFailureEvent: OutputTopic,
 
-  outputTopicDataProviderCursorEvent: OutputTopic,
-
   rateLimitOpenSea: RateLimitConfig,
-  rateLimitCovalentHq: RateLimitConfig,
   rateLimitEtherscan: RateLimitConfig,
 
   mongoDbConfig: MongoDbConfig,
