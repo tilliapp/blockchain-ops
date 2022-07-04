@@ -2,7 +2,7 @@ package app.tilli.blockchain.dataprovider
 
 import app.tilli.api.utils.SimpleHttpClient
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, dataProviderEtherscan, dataProviderOpenSea}
+import app.tilli.blockchain.codec.BlockchainConfig.{Chain, EventType, dataProviderOpenSea}
 import app.tilli.utils.DateUtils
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
@@ -42,34 +42,34 @@ class OpenSeaApiDataProvider[F[_] : Sync](
 
   override def getAssetContract(
     assetContractAddress: String,
-    rateLimiter: Limiter[F],
+    rateLimiter: Option[Limiter[F]],
   ): F[Either[Throwable, Json]] = {
     val path = s"api/v1/asset_contract/$assetContractAddress"
-    rateLimiter.submit(
-      SimpleHttpClient
-        .call[F, Json, Json](
-          host = host,
-          path = path,
-          queryParams = Map.empty,
-          conversion = json => {
-            Json.fromFields(
-              // TODO: Needs unit test. Fails miserably if any of those fields don't exist
-              Iterable(
-                "address" -> Json.fromString(root.address.string.getOption(json).orNull),
-                "openSeaSlug" -> Json.fromString(root.collection.slug.string.getOption(json).orNull),
-                "url" -> Json.fromString(root.collection.externalUrl.string.getOption(json).orNull),
-                "name" -> Json.fromString(root.collection.name.string.getOption(json).orNull),
-                "created" -> Json.fromString(root.createdDate.string.getOption(json).orNull),
-                "type" -> Json.fromString(root.assetContractType.string.getOption(json).orNull),
-                "schema" -> Json.fromString(root.schemaName.string.getOption(json).orNull),
-                "symbol" -> Json.fromString(root.symbol.string.getOption(json).orNull),
-                "sourced" -> Json.fromLong(Instant.now().toEpochMilli)
-                //                "description" -> Json.fromString(root.description.string.getOption(json).orNull),
-              ))
-          },
-          headers = headers,
-        )
-    )
+    val httpCall = SimpleHttpClient
+      .call[F, Json, Json](
+        host = host,
+        path = path,
+        queryParams = Map.empty,
+        conversion = json => {
+          Json.fromFields(
+            // TODO: Needs unit test. Fails miserably if any of those fields don't exist
+            Iterable(
+              "address" -> Json.fromString(root.address.string.getOption(json).orNull),
+              "openSeaSlug" -> Json.fromString(root.collection.slug.string.getOption(json).orNull),
+              "url" -> Json.fromString(root.collection.externalUrl.string.getOption(json).orNull),
+              "name" -> Json.fromString(root.collection.name.string.getOption(json).orNull),
+              "created" -> Json.fromString(root.createdDate.string.getOption(json).orNull),
+              "type" -> Json.fromString(root.assetContractType.string.getOption(json).orNull),
+              "schema" -> Json.fromString(root.schemaName.string.getOption(json).orNull),
+              "symbol" -> Json.fromString(root.symbol.string.getOption(json).orNull),
+              "sourced" -> Json.fromLong(Instant.now().toEpochMilli)
+              //                "description" -> Json.fromString(root.description.string.getOption(json).orNull),
+            ))
+        },
+        headers = headers,
+      )
+
+    rateLimiter.map(_.submit(httpCall)).getOrElse(httpCall)
   }
 
   override def getAssetContractAddress(tilliJsonEvent: TilliJsonEvent): Either[Throwable, String] =
@@ -131,7 +131,7 @@ object OpenSeaApiDataProvider {
       val tokenType = root.asset.assetContract.schemaName.string.getOption(eventJson).map(Json.fromString)
       val tokenId = root.asset.tokenId.string.getOption(eventJson).map(Json.fromString)
       val quantity = root.quantity.string.getOption(eventJson).flatMap(s => Try(s.toLong).toOption.map(Json.fromLong))
-      val transactionTime =  DateUtils.tsToInstant(root.eventTimestamp.string.getOption(eventJson)).map(i => Json.fromString(i.toString))
+      val transactionTime = DateUtils.tsToInstant(root.eventTimestamp.string.getOption(eventJson)).map(i => Json.fromString(i.toString))
       val paymentTokenSymbol = root.paymentToken.symbol.string.getOption(eventJson).map(Json.fromString)
       val paymentTokenDecimals = root.paymentToken.decimals.int.getOption(eventJson).map(Json.fromInt)
       val totalPrice = root.totalPrice.string.getOption(eventJson).map(Json.fromString)

@@ -6,6 +6,7 @@ import java.util.UUID
 
 object BlockchainConfig {
 
+  val DataTypeAssetContractRequest = "AssetContractRequest"
   val DataTypeAssetContract = "AssetContract"
   val DataTypeAssetContractEventRequest = "AssetContractEventRequest"
   val DataTypeAssetContractEvent = "AssetContractEvent"
@@ -16,6 +17,7 @@ object BlockchainConfig {
 
   val Version_20220617 = "2022-06-17"
   val DataTypeToVersion = Map(
+    DataTypeAssetContractRequest -> Version_20220617,
     DataTypeAssetContract -> Version_20220617,
     DataTypeAssetContractEventRequest -> Version_20220617,
     DataTypeAssetContractEvent -> Version_20220617,

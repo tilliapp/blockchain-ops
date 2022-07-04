@@ -2,6 +2,7 @@ package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.BlazeServer
 import app.tilli.api.utils.BlazeHttpClient
+import app.tilli.blockchain.api.internal.SubmitAssetContractRequest
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.dataprovider.{EtherscanDataProvider, OpenSeaApiDataProvider}
 import app.tilli.blockchain.service.blockchainreader
@@ -11,6 +12,8 @@ import app.tilli.persistence.kafka.SslConfig
 import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
+import cats.syntax.all._
+import org.http4s.HttpRoutes
 import upperbound.Limiter
 
 import scala.concurrent.duration.DurationInt
@@ -33,7 +36,6 @@ object BlockchainContractReaderService extends IOApp {
     )
 
     //    import mongo4cats.circe._
-    import app.tilli.blockchain.codec.BlockchainCodec._
     import app.tilli.blockchain.codec.BlockchainMongodbCodec._
     val resources = for {
       appConfig <- ApplicationConfig()
@@ -81,17 +83,36 @@ object BlockchainContractReaderService extends IOApp {
       dataProviderCursorCollection = dataProviderCursorCollection,
     )
 
+    //    val endpoints = Seq(
+    //      SubmitAssetContractRequest.endpoint
+    //    )
+    //    val swaggerRoute = new SwaggerHttp4s(
+    //      yaml = OpenAPIDocsInterpreter()
+    //        .toOpenAPI(endpoints, title = "tilli API", version = "v1")
+    //        .toYaml,
+    //    ).routes[IO]
+
     resources.use { implicit r =>
-      httpServer &>
+      import app.tilli.blockchain.codec.BlockchainCodec._
+      val routes = List(
+        SubmitAssetContractRequest.service(r),
+      ).reduce((a, b) => a <+> b)
+      httpServer(routes = Some(routes)) &>
         AssetContractReader.assetContractRequestsStream(r) &>
         AssetContractEventReader.assetContractEventRequestStream(r) &>
         AddressFilter.addressFilterStream(r)
     }.as(ExitCode.Success)
   }
 
-  def httpServer[F[_] : Async](implicit r: Resources): F[Unit] =
+
+  def httpServer[F[_] : Async](
+    routes: Option[HttpRoutes[F]] = None,
+  )(implicit r: Resources): F[Unit] =
     BlazeServer
-      .serverWithHealthCheck(httpPort = r.httpServerPort)
+      .serverWithHealthCheck(
+        httpPort = r.httpServerPort,
+        routes = routes,
+      )
       .serve
       .compile
       .drain

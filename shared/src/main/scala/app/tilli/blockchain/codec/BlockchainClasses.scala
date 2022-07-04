@@ -1,6 +1,6 @@
 package app.tilli.blockchain.codec
 
-import app.tilli.blockchain.codec.BlockchainConfig.AddressType
+import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAssetContractRequest, DataTypeToVersion}
 import io.circe.Json
 import upperbound.Limiter
 
@@ -115,7 +115,7 @@ object BlockchainClasses {
 
     def getAssetContract(
       assetContractAddress: String,
-      rateLimiter: Limiter[F],
+      rateLimiter: Option[Limiter[F]],
     ): F[Either[Throwable, Json]]
 
   }
@@ -292,4 +292,38 @@ object BlockchainClasses {
     val attempts: Option[Int],
     val cause: TilliHttpCallException,
   ) extends Throwable
+
+  case class AssetContract(
+    address: String,
+    name: Option[String],
+//    openSeaSlug: Option[String],
+//    url: Option[String],
+//    created: Option[String],
+//    `type`: Option[String],
+//    schema: Option[String],
+//    symbol: Option[String],
+//    sourced: Option[Long],
+  )
+
+  case class AssetContractRequest(
+    header: Header,
+    data: AssetContract,
+  ) extends TilliEvent[AssetContract]
+
+  object AssetContractRequest {
+
+    def apply(assetContract: AssetContract): AssetContractRequest =
+      AssetContractRequest(
+        header = Header(
+          trackingId = UUID.randomUUID(),
+          eventTimestamp = Instant.now(),
+          eventId = UUID.randomUUID(),
+          origin = List.empty,
+          dataType = Some(DataTypeAssetContractRequest),
+          version = DataTypeToVersion.get(DataTypeAssetContractRequest)
+        ),
+        data = assetContract,
+      )
+
+  }
 }

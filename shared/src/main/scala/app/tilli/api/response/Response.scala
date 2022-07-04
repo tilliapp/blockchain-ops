@@ -1,5 +1,7 @@
 package app.tilli.api.response
 
+import app.tilli.blockchain.codec.BlockchainClasses.{HttpClientError, TilliHttpCallException}
+
 object Response {
 
   trait Response
@@ -17,7 +19,17 @@ object Response {
   case class ErrorResponse(
     override val message: String,
     override val code: Option[String],
+    detail: Option[String] = None,
   ) extends ErrorResponseTrait
+
+  object ErrorResponse {
+    def apply(httpClientError: HttpClientError): ErrorResponse =
+      ErrorResponse(
+        message = httpClientError.message,
+        code = httpClientError.code.map(_.toString),
+        detail = httpClientError.url,
+      )
+  }
 
   case class HealthCheckSuccess(
     message: String = "healthy",
