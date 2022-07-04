@@ -91,7 +91,7 @@ object SubmitAssetContractRequest extends ApiCodec with TilliSttpSchema {
   ): ProducerRecords[Unit, String, AssetContractRequest] =
     ProducerRecords.one(
       record = ProducerRecord(
-        topic = "test",//topic.name,
+        topic = topic.name,
         key = assetContractRequest.data.address,
         value = assetContractRequest,
       )
