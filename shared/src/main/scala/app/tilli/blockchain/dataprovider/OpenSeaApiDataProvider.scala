@@ -7,7 +7,9 @@ import app.tilli.utils.DateUtils
 import cats.data.EitherT
 import cats.effect.{Concurrent, Sync}
 import io.circe.Json
+import io.circe.optics.JsonPath
 import io.circe.optics.JsonPath.root
+import io.circe.syntax.EncoderOps
 import org.http4s.client.Client
 import org.http4s.{Header, Headers}
 import org.typelevel.ci.CIString
@@ -50,22 +52,7 @@ class OpenSeaApiDataProvider[F[_] : Sync](
         host = host,
         path = path,
         queryParams = Map.empty,
-        conversion = json => {
-          Json.fromFields(
-            // TODO: Needs unit test. Fails miserably if any of those fields don't exist
-            Iterable(
-              "address" -> Json.fromString(root.address.string.getOption(json).orNull),
-              "openSeaSlug" -> Json.fromString(root.collection.slug.string.getOption(json).orNull),
-              "url" -> Json.fromString(root.collection.externalUrl.string.getOption(json).orNull),
-              "name" -> Json.fromString(root.collection.name.string.getOption(json).orNull),
-              "created" -> Json.fromString(root.createdDate.string.getOption(json).orNull),
-              "type" -> Json.fromString(root.assetContractType.string.getOption(json).orNull),
-              "schema" -> Json.fromString(root.schemaName.string.getOption(json).orNull),
-              "symbol" -> Json.fromString(root.symbol.string.getOption(json).orNull),
-              "sourced" -> Json.fromLong(Instant.now().toEpochMilli)
-              //                "description" -> Json.fromString(root.description.string.getOption(json).orNull),
-            ))
-        },
+        conversion = json => decodeAssetContract(json),
         headers = headers,
       )
 
@@ -115,6 +102,27 @@ class OpenSeaApiDataProvider[F[_] : Sync](
 }
 
 object OpenSeaApiDataProvider {
+
+  def lense(jsonPath: JsonPath, json: Json): Json =
+    jsonPath.string.getOption(json).map(Json.fromString).getOrElse(Json.Null)
+
+  def decodeAssetContract(
+    json: Json,
+    sourcedTime: Instant = Instant.now,
+  ): Json  = {
+    Json.fromFields(
+      Iterable(
+        "address" -> lense(root.address, json),
+        "openSeaSlug" -> lense(root.collection.slug, json),
+        "url" -> lense(root.collection.externalUrl, json),
+        "name" -> lense(root.collection.name, json),
+        "created" -> lense(root.createdDate, json),
+        "type" -> lense(root.assetContractType, json),
+        "schema" -> lense(root.schemaName, json),
+        "symbol" -> lense(root.symbol, json),
+        "sourced" -> Json.fromLong(sourcedTime.toEpochMilli)
+      ))
+  }
 
   def getNextPageFromResult(data: Json): Option[String] =
     root.next.string.getOption(data)

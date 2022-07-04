@@ -4,6 +4,8 @@ import app.tilli.BaseSpec
 import app.tilli.blockchain.dataprovider.OpenSeaApiDataProviderSpec._
 import app.tilli.serializer.KeyConverter
 
+import java.time.Instant
+
 class OpenSeaApiDataProviderSpec extends BaseSpec {
 
   "OpenSeaApi" must {
@@ -20,11 +22,94 @@ class OpenSeaApiDataProviderSpec extends BaseSpec {
         expectedResult2Json
       )
     }
+
+    "decode asset contract with missing fields" in {
+      val time = Instant.now
+      val Right(json) = io.circe.parser.parse(mfersAssetContract)
+      val jsonConvertedKeys = KeyConverter.snakeCaseToCamelCaseJson(json)
+      val processed = OpenSeaApiDataProvider.decodeAssetContract(jsonConvertedKeys, time)
+      val Right(expected) = io.circe.parser.parse(mfersAssetContractExpected(time.toEpochMilli))
+      processed mustBe expected
+    }
   }
 }
 
 
 object OpenSeaApiDataProviderSpec {
+
+  val mfersAssetContract =
+    """{
+      |    "collection": {
+      |        "banner_image_url": "https://lh3.googleusercontent.com/vqvdty0tk-RKv8dPkKnAiLxFxhRfMdt-K7iwp1RJh13yBKPS3iUmqAY29xdJlbjXk_AqXu81FfC6AWg79UV0SQqifBxEXp2rdhox9CQ=s2500",
+      |        "chat_url": null,
+      |        "created_date": "2021-11-30T04:55:51.097880",
+      |        "default_to_fiat": false,
+      |        "description": "mfers are generated entirely from hand drawings by sartoshi. this project is in the public domain; feel free to use mfers any way you want.\n\nunofficial mfers discord is [here](https://t.co/k18FPgnBy7)\n\nbackstory on mfers is [here](https://mirror.xyz/sartoshi.eth/QukjtL1076-1SEoNJuqyc-x4Ut2v8_TocKkszo-S_nU)",
+      |        "dev_buyer_fee_basis_points": "0",
+      |        "dev_seller_fee_basis_points": "500",
+      |        "discord_url": null,
+      |        "display_data": {
+      |            "card_display_style": "cover"
+      |        },
+      |        "external_url": null,
+      |        "featured": false,
+      |        "featured_image_url": "https://lh3.googleusercontent.com/J2iIgy5_gmA8IS6sXGKGZeFVZwhldQylk7w7fLepTE9S7ICPCn_dlo8kypX8Ju0N6wvLVOKsbP_7bNGd8cpKmWhFQmqMXOC8q2sOdqw=s300",
+      |        "hidden": false,
+      |        "safelist_request_status": "verified",
+      |        "image_url": "https://lh3.googleusercontent.com/J2iIgy5_gmA8IS6sXGKGZeFVZwhldQylk7w7fLepTE9S7ICPCn_dlo8kypX8Ju0N6wvLVOKsbP_7bNGd8cpKmWhFQmqMXOC8q2sOdqw=s120",
+      |        "is_subject_to_whitelist": false,
+      |        "large_image_url": "https://lh3.googleusercontent.com/J2iIgy5_gmA8IS6sXGKGZeFVZwhldQylk7w7fLepTE9S7ICPCn_dlo8kypX8Ju0N6wvLVOKsbP_7bNGd8cpKmWhFQmqMXOC8q2sOdqw=s300",
+      |        "medium_username": null,
+      |        "name": "mfers",
+      |        "only_proxied_transfers": false,
+      |        "opensea_buyer_fee_basis_points": "0",
+      |        "opensea_seller_fee_basis_points": "250",
+      |        "payout_address": "0x2c47540d6f4589a974e651f13a27dd9a62f30b89",
+      |        "require_email": false,
+      |        "short_description": null,
+      |        "slug": "mfers",
+      |        "telegram_url": null,
+      |        "twitter_username": null,
+      |        "instagram_username": null,
+      |        "wiki_url": null,
+      |        "is_nsfw": false
+      |    },
+      |    "address": "0x79fcdef22feed20eddacbb2587640e45491b757f",
+      |    "asset_contract_type": "non-fungible",
+      |    "created_date": "2021-11-29T22:21:12.644606",
+      |    "name": "mfer",
+      |    "nft_version": "3.0",
+      |    "opensea_version": null,
+      |    "owner": 240860552,
+      |    "schema_name": "ERC721",
+      |    "symbol": "MFER",
+      |    "total_supply": "0",
+      |    "description": "mfers are generated entirely from hand drawings by sartoshi. this project is in the public domain; feel free to use mfers any way you want.\n\nunofficial mfers discord is [here](https://t.co/k18FPgnBy7)\n\nbackstory on mfers is [here](https://mirror.xyz/sartoshi.eth/QukjtL1076-1SEoNJuqyc-x4Ut2v8_TocKkszo-S_nU)",
+      |    "external_link": null,
+      |    "image_url": "https://lh3.googleusercontent.com/J2iIgy5_gmA8IS6sXGKGZeFVZwhldQylk7w7fLepTE9S7ICPCn_dlo8kypX8Ju0N6wvLVOKsbP_7bNGd8cpKmWhFQmqMXOC8q2sOdqw=s120",
+      |    "default_to_fiat": false,
+      |    "dev_buyer_fee_basis_points": 0,
+      |    "dev_seller_fee_basis_points": 500,
+      |    "only_proxied_transfers": false,
+      |    "opensea_buyer_fee_basis_points": 0,
+      |    "opensea_seller_fee_basis_points": 250,
+      |    "buyer_fee_basis_points": 0,
+      |    "seller_fee_basis_points": 750,
+      |    "payout_address": "0x2c47540d6f4589a974e651f13a27dd9a62f30b89"
+      |}""".stripMargin
+
+  def mfersAssetContractExpected(time:Long) =
+    s"""{
+      |  "address" : "0x79fcdef22feed20eddacbb2587640e45491b757f",
+      |  "openSeaSlug" : "mfers",
+      |  "url" : null,
+      |  "name" : "mfers",
+      |  "created" : "2021-11-29T22:21:12.644606",
+      |  "type" : "non-fungible",
+      |  "schema" : "ERC721",
+      |  "symbol" : "MFER",
+      |  "sourced" : $time
+      |}""".stripMargin
 
   val transfer =
     """

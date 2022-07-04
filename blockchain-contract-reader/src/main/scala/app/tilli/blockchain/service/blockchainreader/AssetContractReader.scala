@@ -68,7 +68,7 @@ object AssetContractReader extends StreamTrait {
     import cats.implicits._
     Sync[F].delay(log.info(s"Starting initial sync for asset contract: ${record.value.asJson.spaces2}")) *>
       source.getAssetContract(
-        root.assetContractAddress.string.getOption(record.value.data).get,
+        root.address.string.getOption(record.value.data).get,
         Some(rateLimiter),
       )
   }

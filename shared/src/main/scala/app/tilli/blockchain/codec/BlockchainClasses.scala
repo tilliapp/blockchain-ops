@@ -296,13 +296,13 @@ object BlockchainClasses {
   case class AssetContract(
     address: String,
     name: Option[String],
-//    openSeaSlug: Option[String],
-//    url: Option[String],
-//    created: Option[String],
-//    `type`: Option[String],
-//    schema: Option[String],
-//    symbol: Option[String],
-//    sourced: Option[Long],
+    openSeaSlug: Option[String],
+    url: Option[String],
+    created: Option[String],
+    `type`: Option[String],
+    schema: Option[String],
+    symbol: Option[String],
+    sourced: Option[Long],
   )
 
   case class AssetContractRequest(

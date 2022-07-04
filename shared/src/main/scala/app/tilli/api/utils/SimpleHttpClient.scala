@@ -55,7 +55,7 @@ object SimpleHttpClient extends Logging {
         )
     }.attempt
       .map(_
-        .map(s => KeyConverter.snakeCaseToCamelCaseJson(s))
+        .map(j => KeyConverter.snakeCaseToCamelCaseJson(j))
         .flatMap(json => json.as[A].map(conversion))
       )
   }
