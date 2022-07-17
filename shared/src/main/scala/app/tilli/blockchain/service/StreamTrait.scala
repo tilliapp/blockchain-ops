@@ -135,4 +135,22 @@ trait StreamTrait extends Logging {
       offset
     )
   }
+
+  def toTilliJsonEventCommittable[F[_]](
+    committable: CommittableConsumerRecord[F, String, TilliAssetContractRequestEvent]
+  ): CommittableConsumerRecord[F, String, TilliJsonEvent] = {
+    CommittableConsumerRecord(
+      record = ConsumerRecord(
+        topic = committable.record.topic,
+        partition = committable.record.partition,
+        offset = committable.record.offset,
+        key = committable.record.key,
+        value = TilliJsonEvent(
+          header = committable.record.value.header,
+          data = committable.record.value.data.asJson
+        ),
+      ),
+      offset = committable.offset,
+    )
+  }
 }

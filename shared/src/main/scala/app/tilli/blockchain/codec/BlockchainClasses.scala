@@ -305,6 +305,20 @@ object BlockchainClasses {
     sourced: Option[Long],
   )
 
+  object AssetContract {
+    def apply(address: String): AssetContract = AssetContract(
+      address = address,
+      name = None,
+      openSeaSlug = None,
+      url = None,
+      created = None,
+      `type` = None,
+      schema = None,
+      symbol = None,
+      sourced = None,
+    )
+  }
+
   case class TilliAssetContractRequestEvent(
     override val header: Header,
     override val data: AssetContractRequest
@@ -335,28 +349,8 @@ object BlockchainClasses {
 
   case class AssetContractRequest(
     assetContract: AssetContract,
-    attempt: Option[Int],
+    attempt: Option[Int] = Some(1),
     startSync: Option[Boolean] = Some(false),
   )
-
-//  object AssetContractRequest {
-//
-//    def apply(
-//      assetContract: AssetContract,
-//      startSync: Boolean = false,
-//    ): AssetContractRequest =
-//      AssetContractRequest(
-//        header = Header(
-//          trackingId = UUID.randomUUID(),
-//          eventTimestamp = Instant.now(),
-//          eventId = UUID.randomUUID(),
-//          origin = List.empty,
-//          dataType = Some(DataTypeAssetContractRequest),
-//          version = DataTypeToVersion.get(DataTypeAssetContractRequest)
-//        ),
-//        data = assetContract,
-//        startSync = startSync,
-//      )
-//  }
 
 }
