@@ -298,7 +298,7 @@ object BlockchainClasses {
     name: Option[String],
     openSeaSlug: Option[String],
     url: Option[String],
-    created: Option[String],
+    created: Option[Instant],
     `type`: Option[String],
     schema: Option[String],
     symbol: Option[String],

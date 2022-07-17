@@ -44,7 +44,7 @@ object TransactionAssetContractFilter extends StreamTrait {
               val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
               val processed = {
                 chunk.map { committable =>
-                  val processedRecord = processRecord(committable.record, r.assetContractCache).asInstanceOf[F[Either[HttpClientErrorTrait, Option[AssetContractRequest]]]]
+                  val processedRecord = processRecord(committable.record, r.assetContractCache).asInstanceOf[F[Either[Throwable, Option[AssetContractRequest]]]]
                   processedRecord.map {
                     case Right(result) => toProducerRecords(committable, result, outputTopicAssetContractRequest)
                     case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
