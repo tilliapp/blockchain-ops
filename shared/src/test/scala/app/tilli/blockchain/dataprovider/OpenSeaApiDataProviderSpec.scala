@@ -104,7 +104,7 @@ object OpenSeaApiDataProviderSpec {
       |  "openSeaSlug" : "mfers",
       |  "url" : null,
       |  "name" : "mfers",
-      |  "created" : "2021-11-29T22:21:12.644606",
+      |  "created" : "2021-11-29T22:21:12.644606Z",
       |  "type" : "non-fungible",
       |  "schema" : "ERC721",
       |  "symbol" : "MFER",
