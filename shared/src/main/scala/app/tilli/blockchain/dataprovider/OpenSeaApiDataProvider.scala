@@ -116,7 +116,7 @@ object OpenSeaApiDataProvider {
         "openSeaSlug" -> lense(root.collection.slug, json),
         "url" -> lense(root.collection.externalUrl, json),
         "name" -> lense(root.collection.name, json),
-        "created" -> lense(root.createdDate, json),
+        "created" -> DateUtils.tsToInstant(root.createdDate.string.getOption(json)).map(i => Json.fromString(i.toString)).getOrElse(Json.Null),
         "type" -> lense(root.assetContractType, json),
         "schema" -> lense(root.schemaName, json),
         "symbol" -> lense(root.symbol, json),
