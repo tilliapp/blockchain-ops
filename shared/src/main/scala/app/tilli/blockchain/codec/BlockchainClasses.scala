@@ -305,6 +305,11 @@ object BlockchainClasses {
     sourced: Option[Long],
   )
 
+  case class TilliAssetContractEvent(
+    override val header: Header,
+    override val data: AssetContract
+  ) extends TilliEvent[AssetContract]
+
   case class AssetContractRequest(
     header: Header,
     data: AssetContract,
@@ -324,6 +329,6 @@ object BlockchainClasses {
         ),
         data = assetContract,
       )
-
   }
+
 }

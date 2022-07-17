@@ -20,9 +20,12 @@ case class AppConfig(
 
   inputTopicDataProviderCursorEvent: InputTopic,
 
+  inputTopicAssetContractEvent: InputTopic,
+
   mongoDbConfig: MongoDbConfig,
   mongoDbCollectionTransaction: String,
   mongoDbCollectionDataProviderCursor: String,
+  mongoDbCollectionAssetContract: String,
 )
 
 object AppConfig {

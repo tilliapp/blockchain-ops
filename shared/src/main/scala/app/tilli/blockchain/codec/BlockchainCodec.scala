@@ -36,17 +36,18 @@ object BlockchainCodec {
 
   implicit lazy val codecAssetContract: Codec[AssetContract] = deriveCodec
   implicit lazy val codecAssetContractRequest: Codec[AssetContractRequest] = deriveCodec
+  implicit lazy val codecTilliAssetContractEvent: Codec[TilliAssetContractEvent] = deriveCodec
 
   // FS kafka
   implicit val deserializerJson: Deserializer[IO, Json] = jsonDeserializer
   implicit val deserializerTilliJsonEvent: Deserializer[IO, TilliJsonEvent] = classDeserializer
+  implicit val deserializerTilliAssetContractEvent: Deserializer[IO, TilliAssetContractEvent] = classDeserializer
 
   implicit val serializerJson: Serializer[IO, Json] = Fs2KafkaCodec.serializer
   implicit val serializerTilliJsonEvent: Serializer[IO, TilliJsonEvent] = Fs2KafkaCodec.serializer
-
   implicit val serializerAssetContractRequest: Serializer[IO, AssetContractRequest] = Fs2KafkaCodec.serializer
-
   implicit val serializerTilliDataProviderError: Serializer[IO, TilliDataProviderError] = Fs2KafkaCodec.serializer
+  implicit val serializerTilliAssetContractEvent: Serializer[IO, TilliAssetContractEvent] = Fs2KafkaCodec.serializer
 
   object InstantFromLongDecoder {
 
