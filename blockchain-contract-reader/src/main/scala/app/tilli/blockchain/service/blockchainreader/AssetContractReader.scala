@@ -23,14 +23,14 @@ object AssetContractReader extends StreamTrait {
   def assetContractRequestsStream[F[_] : Async](
     r: Resources,
   )(implicit
-    valueDeserializer: Deserializer[F, TilliJsonEvent],
+    valueDeserializer: Deserializer[F, TilliAssetContractRequestEvent],
     keySerializer: RecordSerializer[F, String],
     valueSerializer: RecordSerializer[F, TilliJsonEvent]
   ): F[Unit] = {
     import cats.implicits._
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaProducerConfig = r.appConfig.kafkaProducerConfiguration
-    val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
+    val kafkaConsumer = new KafkaConsumer[String, TilliAssetContractRequestEvent](kafkaConsumerConfig, r.sslConfig)
     val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig, r.sslConfig)
     val inputTopic = r.appConfig.inputTopicAssetContractRequest
     val outputTopicAssetContract = r.appConfig.outputTopicAssetContract
@@ -47,10 +47,12 @@ object AssetContractReader extends StreamTrait {
             .subscribeTo(inputTopic.name)
             .records
             .mapAsync(2) { committable =>
-              val record = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
-              record.map {
+              val processedRecord = processRecord(r.assetContractSource, committable.record, r.openSeaRateLimiter).asInstanceOf[F[Either[HttpClientErrorTrait, Json]]]
+              processedRecord.map {
                 case Right(result) => toProducerRecords(committable, result, outputTopicAssetContract, outputTopicAssetContractRequest, r.assetContractSource)
-                case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
+                case Left(errorTrait) =>
+                  val tilliJsonEventCommittable = toTilliJsonEventCommittable(committable)
+                  handleDataProviderError(tilliJsonEventCommittable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
               }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
             }
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
@@ -60,78 +62,104 @@ object AssetContractReader extends StreamTrait {
     stream.compile.drain
   }
 
+  def toTilliJsonEventCommittable[F[_]](
+    committable: CommittableConsumerRecord[F, String, TilliAssetContractRequestEvent]
+  ): CommittableConsumerRecord[F, String, TilliJsonEvent] = {
+    CommittableConsumerRecord(
+      record = ConsumerRecord(
+        topic = committable.record.topic,
+        partition = committable.record.partition,
+        offset = committable.record.offset,
+        key = committable.record.key,
+        value = TilliJsonEvent(
+          header = committable.record.value.header,
+          data = committable.record.value.data.asJson
+        ),
+      ),
+      offset = committable.offset,
+    )
+  }
+
   def processRecord[F[_] : Sync : Async](
     source: AssetContractSource[F],
-    record: ConsumerRecord[String, TilliJsonEvent],
+    record: ConsumerRecord[String, TilliAssetContractRequestEvent],
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, Json]] = {
     import cats.implicits._
-    Sync[F].delay(log.info(s"Starting initial sync for asset contract: ${record.value.asJson.spaces2}")) *>
+    Sync[F].delay(log.info(s"Request for asset contract: ${record.value.asJson.spaces2}")) *>
       source.getAssetContract(
-        root.address.string.getOption(record.value.data).get,
+        record.value.data.assetContract.address,
         Some(rateLimiter),
       )
   }
 
   def toProducerRecords[F[_]](
-    record: CommittableConsumerRecord[F, String, TilliJsonEvent],
+    record: CommittableConsumerRecord[F, String, TilliAssetContractRequestEvent],
     result: Json,
     assetContractTopic: OutputTopic,
     assetContractEventRequestTopic: OutputTopic,
     dataProvider: DataProviderTrait,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val trackingId = record.record.value.header.trackingId
+    val startSync = record.record.value.data.startSync.contains(true)
     val key = root.address.string.getOption(result).orNull
     val sourced = DateUtils.tsToInstant(root.sourced.string.getOption(result)).getOrElse(Instant.now())
-    val tilliJsonEvent1 = TilliJsonEvent(
-      BlockchainClasses.Header(
-        trackingId = trackingId,
-        eventTimestamp = Instant.now(),
-        eventId = UUID.randomUUID(),
-        origin = record.record.value.header.origin ++ List(
-          Origin(
-            source = Some(dataProvider.source),
-            provider = Some(dataProvider.provider),
-            sourcedTimestamp = sourced,
-          )
-        ),
-        dataType = Some(DataTypeAssetContract),
-        version = DataTypeToVersion.get(DataTypeAssetContract)
-      ),
-      data = result,
-    )
-    val assetContractProducerRecord = ProducerRecord(assetContractTopic.name, key, tilliJsonEvent1)
 
-    val addressRequest = AssetContractHolderRequest(
-      assetContractAddress = root.address.string.getOption(result),
-      openSeaCollectionSlug = root.openSeaSlug.string.getOption(result),
-      nextPage = None,
-    )
-
-    val tilliJsonEvent2 = TilliJsonEvent(
-      BlockchainClasses.Header(
-        trackingId = trackingId,
-        eventTimestamp = Instant.now(),
-        eventId = UUID.randomUUID(),
-        origin = List(
-          Origin(
-            source = Some(dataProvider.source),
-            provider = Some(dataProvider.provider),
-            sourcedTimestamp = sourced,
-          )
+    val assetContractProducerRecord = {
+      val tilliJsonEvent1 = TilliJsonEvent(
+        BlockchainClasses.Header(
+          trackingId = trackingId,
+          eventTimestamp = Instant.now(),
+          eventId = UUID.randomUUID(),
+          origin = record.record.value.header.origin ++ List(
+            Origin(
+              source = Some(dataProvider.source),
+              provider = Some(dataProvider.provider),
+              sourcedTimestamp = sourced,
+            )
+          ),
+          dataType = Some(DataTypeAssetContract),
+          version = DataTypeToVersion.get(DataTypeAssetContract)
         ),
-        dataType = Some(DataTypeAssetContractEventRequest),
-        version = DataTypeToVersion.get(DataTypeAssetContractEventRequest)
-      ),
-      data = addressRequest.asJson,
-    )
-    val assetContractEventRequestProducerRecord = ProducerRecord(assetContractEventRequestTopic.name, key, tilliJsonEvent2)
+        data = result,
+      )
+      val assetContractProducerRecord = ProducerRecord(assetContractTopic.name, key, tilliJsonEvent1)
+      List(assetContractProducerRecord)
+    }
+
+    val assetContractEventRequestProducerRecord = {
+      if (!startSync) List.empty
+      else {
+        val addressRequest = AssetContractHolderRequest(
+          assetContractAddress = root.address.string.getOption(result),
+          openSeaCollectionSlug = root.openSeaSlug.string.getOption(result),
+          nextPage = None,
+        )
+
+        val tilliJsonEvent2 = TilliJsonEvent(
+          BlockchainClasses.Header(
+            trackingId = trackingId,
+            eventTimestamp = Instant.now(),
+            eventId = UUID.randomUUID(),
+            origin = List(
+              Origin(
+                source = Some(dataProvider.source),
+                provider = Some(dataProvider.provider),
+                sourcedTimestamp = sourced,
+              )
+            ),
+            dataType = Some(DataTypeAssetContractEventRequest),
+            version = DataTypeToVersion.get(DataTypeAssetContractEventRequest)
+          ),
+          data = addressRequest.asJson,
+        )
+        val assetContractEventRequestProducerRecord = ProducerRecord(assetContractEventRequestTopic.name, key, tilliJsonEvent2)
+        List(assetContractEventRequestProducerRecord)
+      }
+    }
 
     ProducerRecords(
-      records = List(
-        assetContractProducerRecord,
-        assetContractEventRequestProducerRecord,
-      ),
+      records = assetContractProducerRecord ++ assetContractEventRequestProducerRecord,
       record.offset
     )
   }

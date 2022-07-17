@@ -305,20 +305,15 @@ object BlockchainClasses {
     sourced: Option[Long],
   )
 
-  case class TilliAssetContractEvent(
+  case class TilliAssetContractRequestEvent(
     override val header: Header,
-    override val data: AssetContract
-  ) extends TilliEvent[AssetContract]
+    override val data: AssetContractRequest
+  ) extends TilliEvent[AssetContractRequest]
 
-  case class AssetContractRequest(
-    header: Header,
-    data: AssetContract,
-  ) extends TilliEvent[AssetContract]
+  object TilliAssetContractRequestEvent {
 
-  object AssetContractRequest {
-
-    def apply(assetContract: AssetContract): AssetContractRequest =
-      AssetContractRequest(
+    def apply(assetContractRequest: AssetContractRequest): TilliAssetContractRequestEvent = {
+      TilliAssetContractRequestEvent(
         header = Header(
           trackingId = UUID.randomUUID(),
           eventTimestamp = Instant.now(),
@@ -327,8 +322,41 @@ object BlockchainClasses {
           dataType = Some(DataTypeAssetContractRequest),
           version = DataTypeToVersion.get(DataTypeAssetContractRequest)
         ),
-        data = assetContract,
+        data = assetContractRequest,
       )
+    }
+
   }
+
+  case class TilliAssetContractEvent(
+    override val header: Header,
+    override val data: AssetContract
+  ) extends TilliEvent[AssetContract]
+
+  case class AssetContractRequest(
+    assetContract: AssetContract,
+    attempt: Option[Int],
+    startSync: Option[Boolean] = Some(false),
+  )
+
+//  object AssetContractRequest {
+//
+//    def apply(
+//      assetContract: AssetContract,
+//      startSync: Boolean = false,
+//    ): AssetContractRequest =
+//      AssetContractRequest(
+//        header = Header(
+//          trackingId = UUID.randomUUID(),
+//          eventTimestamp = Instant.now(),
+//          eventId = UUID.randomUUID(),
+//          origin = List.empty,
+//          dataType = Some(DataTypeAssetContractRequest),
+//          version = DataTypeToVersion.get(DataTypeAssetContractRequest)
+//        ),
+//        data = assetContract,
+//        startSync = startSync,
+//      )
+//  }
 
 }
