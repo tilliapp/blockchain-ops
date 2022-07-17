@@ -120,7 +120,7 @@ object OpenSeaApiDataProvider {
         "type" -> lense(root.assetContractType, json),
         "schema" -> lense(root.schemaName, json),
         "symbol" -> lense(root.symbol, json),
-        "sourced" -> Json.fromLong(sourcedTime.toEpochMilli)
+        "sourced" ->  Json.fromString(sourcedTime.toString),
       ))
   }
 
