@@ -28,7 +28,7 @@ class OpenSeaApiDataProviderSpec extends BaseSpec {
       val Right(json) = io.circe.parser.parse(mfersAssetContract)
       val jsonConvertedKeys = KeyConverter.snakeCaseToCamelCaseJson(json)
       val processed = OpenSeaApiDataProvider.decodeAssetContract(jsonConvertedKeys, time)
-      val Right(expected) = io.circe.parser.parse(mfersAssetContractExpected(time.toEpochMilli))
+      val Right(expected) = io.circe.parser.parse(mfersAssetContractExpected(time))
       processed mustBe expected
     }
   }
@@ -98,7 +98,7 @@ object OpenSeaApiDataProviderSpec {
       |    "payout_address": "0x2c47540d6f4589a974e651f13a27dd9a62f30b89"
       |}""".stripMargin
 
-  def mfersAssetContractExpected(time:Long) =
+  def mfersAssetContractExpected(time:Instant) =
     s"""{
       |  "address" : "0x79fcdef22feed20eddacbb2587640e45491b757f",
       |  "openSeaSlug" : "mfers",
@@ -108,7 +108,7 @@ object OpenSeaApiDataProviderSpec {
       |  "type" : "non-fungible",
       |  "schema" : "ERC721",
       |  "symbol" : "MFER",
-      |  "sourced" : $time
+      |  "sourced" : "${time.toString}"
       |}""".stripMargin
 
   val transfer =
