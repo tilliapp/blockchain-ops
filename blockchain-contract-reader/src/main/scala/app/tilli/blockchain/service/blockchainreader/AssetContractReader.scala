@@ -53,7 +53,7 @@ object AssetContractReader extends StreamTrait {
                 case Left(errorTrait) =>
                   val tilliJsonEventCommittable = toTilliJsonEventCommittable(committable)
                   handleDataProviderError(tilliJsonEventCommittable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
-              }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
+              }//.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
             }
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
             .map(_.passthrough)
@@ -68,7 +68,7 @@ object AssetContractReader extends StreamTrait {
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, Json]] = {
     import cats.implicits._
-    Sync[F].delay(log.info(s"Request for asset contract: ${record.value.asJson.spaces2}")) *>
+//    Sync[F].delay(log.info(s"Request for asset contract: ${record.value.asJson.spaces2}")) *>
       source.getAssetContract(
         record.value.data.assetContract.address,
         Some(rateLimiter),

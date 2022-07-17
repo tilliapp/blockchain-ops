@@ -302,7 +302,7 @@ object BlockchainClasses {
     `type`: Option[String],
     schema: Option[String],
     symbol: Option[String],
-    sourced: Option[Long],
+    sourced: Option[Instant],
   )
 
   object AssetContract {

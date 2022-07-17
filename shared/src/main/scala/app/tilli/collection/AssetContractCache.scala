@@ -24,6 +24,21 @@ class AssetContractCache[F[_] : Sync](
     memoryCache
       .lookup(assetContract)
       .attempt
+      .flatMap {
+        case Left(err) => Sync[F].pure(Left(new IllegalStateException(err)))
+        case Right(v) => v match {
+          case Some(v) => Sync[F].pure(Right(Option(v)))
+          case None =>
+            lookupInBackend(assetContract, collection)
+              .flatMap {
+                case Left(err) => Sync[F].pure(Left(new IllegalStateException(err)))
+                case Right(res) => res match {
+                  case Some(res) => insert(assetContract, assetContract) *> Sync[F].pure(Right(Option(assetContract)))
+                  case None => insert(assetContract, assetContract) *> Sync[F].pure(Right(None))
+                }
+              }
+        }
+      }
   }
 
   def insert(
@@ -32,9 +47,8 @@ class AssetContractCache[F[_] : Sync](
   ): F[Either[Throwable, Boolean]] = {
     val chain = {
       for {
-        bc <- EitherT(Sync[F].pure(Right(false)).asInstanceOf[F[Either[Throwable, Boolean]]])
-        mc <- EitherT(memoryCache.insert(k, v).attempt)
-      } yield bc
+        _ <- EitherT(memoryCache.insert(k, v).attempt)
+      } yield true
     }
     chain.value
   }
@@ -48,7 +62,7 @@ class AssetContractCache[F[_] : Sync](
     import cats.implicits._
     collection
       .find
-      .filter(Filter.eq("key", k))
+      .filter(Filter.eq("data.address", k))
       .first
       .attempt
       .map(_.map(_.map(_.data)))
