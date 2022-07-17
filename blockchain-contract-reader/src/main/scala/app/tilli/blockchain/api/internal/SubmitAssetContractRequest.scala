@@ -7,7 +7,7 @@ import app.tilli.blockchain.codec.BlockchainClasses.{AssetContract, AssetContrac
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.service.blockchainreader.Resources
 import app.tilli.persistence.kafka.KafkaProducer
-import app.tilli.utils.InputTopic
+import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.data.EitherT
 import cats.effect.{Async, IO}
 import fs2.kafka.{ProducerRecord, ProducerRecords, ProducerResult, RecordSerializer}
@@ -56,7 +56,7 @@ object SubmitAssetContractRequest extends ApiCodec with TilliSttpSchema {
       .flatMap { assetContractRequest =>
         val event = TilliAssetContractRequestEvent(assetContractRequest)
         EitherT(
-          writeToKafka(event, kafkaProducer, resources.appConfig.inputTopicAssetContractRequest)
+          writeToKafka(event, kafkaProducer, resources.appConfig.outputTopicAssetContractRequest)
             .compile
             .drain
             .attempt
@@ -73,7 +73,7 @@ object SubmitAssetContractRequest extends ApiCodec with TilliSttpSchema {
   def writeToKafka(
     assetContractRequestEvent: TilliAssetContractRequestEvent,
     kafkaProducer: KafkaProducer[String, TilliAssetContractRequestEvent],
-    topic: InputTopic,
+    topic: OutputTopic,
   )(implicit
     keySerializer: RecordSerializer[IO, String],
     valueSerializer: RecordSerializer[IO, TilliAssetContractRequestEvent],
@@ -89,7 +89,7 @@ object SubmitAssetContractRequest extends ApiCodec with TilliSttpSchema {
 
   def toProducerRecord[F[_]](
     assetContractRequestEvent: TilliAssetContractRequestEvent,
-    topic: InputTopic,
+    topic: OutputTopic,
   ): ProducerRecords[Unit, String, TilliAssetContractRequestEvent] =
     ProducerRecords.one(
       record = ProducerRecord(

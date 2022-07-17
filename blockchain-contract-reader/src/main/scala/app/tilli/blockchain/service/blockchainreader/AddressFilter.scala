@@ -3,7 +3,7 @@ package app.tilli.blockchain.service.blockchainreader
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainCodec._
-import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAddressRequest, DataTypeToVersion, dataProviderCovalentHq}
+import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAddressRequest, DataTypeToVersion, NullAddress, dataProviderCovalentHq}
 import app.tilli.blockchain.service.StreamTrait
 import app.tilli.collection.AddressRequestCache
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
@@ -59,7 +59,7 @@ object AddressFilter extends StreamTrait {
                   .map {
                     case Right(res) => toProducerRecords(committable.record, committable.offset, res, outputTopic)
                     case Left(err) => handleDataProviderError(committable, err, inputTopic, outputTopicFailure, r.assetContractEventSource)
-                  }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
+                  }//.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
               }
             }.parJoinUnbounded
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
@@ -79,7 +79,6 @@ object AddressFilter extends StreamTrait {
     dataProviderCursorCollection: MongoCollection[F, DataProviderCursorRecord],
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, List[AddressRequest]]] = {
-    val blockChain = root.chain.string.getOption(record.value.data)
     val addresses = List(
       root.toAddress.string.getOption(record.value.data),
       root.fromAddress.string.getOption(record.value.data),
@@ -87,7 +86,7 @@ object AddressFilter extends StreamTrait {
 
     import cats.implicits._
     val temp = addresses
-      .filterNot(_ == "0x0000000000000000000000000000000000000000") // Remove null address
+      .filterNot(_ == NullAddress) // Remove null address
       .map { a =>
         val chain = for {
           bc <- EitherT(Sync[F].pure(root.chain.string.getOption(record.value.data).toRight(new IllegalStateException(s"Missing blockchain id on event ${record.value.header.eventId}"))))

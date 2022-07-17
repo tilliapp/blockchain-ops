@@ -2,7 +2,7 @@ package app.tilli.blockchain.service.blockchainreader
 
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.service.blockchainreader.config.AppConfig
-import app.tilli.collection.AddressRequestCache
+import app.tilli.collection.{AddressRequestCache, AssetContractCache}
 import cats.effect.IO
 import io.chrisdavenport.mules.Cache
 import io.circe.Json
@@ -22,6 +22,7 @@ case class Resources(
   assetContractTypeSource: AssetContractTypeSource[IO],
   addressTypeCache: Cache[IO, String, AddressSimple],
   addressRequestCache: AddressRequestCache[IO],
+  assetContractCache: AssetContractCache[IO],
   dataProviderCursorCache: Cache[IO, String, DataProviderCursor],
   dataProviderCursorCollection: MongoCollection[IO, DataProviderCursorRecord],
 )

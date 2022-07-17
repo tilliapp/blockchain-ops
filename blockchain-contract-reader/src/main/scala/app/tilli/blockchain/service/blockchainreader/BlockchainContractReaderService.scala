@@ -7,7 +7,7 @@ import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.dataprovider.{EtherscanDataProvider, OpenSeaApiDataProvider}
 import app.tilli.blockchain.service.blockchainreader
 import app.tilli.blockchain.service.blockchainreader.config.AppConfig.readerAppConfig
-import app.tilli.collection.{AddressRequestCache, MemCache}
+import app.tilli.collection.{AddressRequestCache, AssetContractCache, MemCache}
 import app.tilli.persistence.kafka.SslConfig
 import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
@@ -57,6 +57,7 @@ object BlockchainContractReaderService extends IOApp {
       mongoDatabase <- Resource.eval(mongoClient.getDatabase(appConfig.mongoDbConfig.db))
       dataProviderCursorCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[DataProviderCursorRecord](appConfig.mongoDbCollectionDataProviderCursor))
       addressRequestCacheCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[AddressRequestRecord](appConfig.mongoDbCollectionAddressRequestCache))
+      assetContractCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[TilliAssetContractEvent](appConfig.mongoDbCollectionAssetContract))
 
       addressTypeCache <- MemCache.resource[IO, String, AddressSimple](duration = 365.days)
 
@@ -64,6 +65,9 @@ object BlockchainContractReaderService extends IOApp {
       addressRequestCache = new AddressRequestCache[IO](addressRequestMemCache, addressRequestCacheCollection)
 
       dataProviderCursorCache <- MemCache.resource[IO, String, DataProviderCursor](duration = 5.minutes)
+
+      assetContractMemCache <- MemCache.resource[IO, String, String](duration = 2.hours)
+      assetContractCache = new AssetContractCache[IO](assetContractMemCache, assetContractCollection)
 
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
 
@@ -81,6 +85,7 @@ object BlockchainContractReaderService extends IOApp {
       addressRequestCache = addressRequestCache,
       dataProviderCursorCache = dataProviderCursorCache,
       dataProviderCursorCollection = dataProviderCursorCollection,
+      assetContractCache = assetContractCache,
     )
 
     //    val endpoints = Seq(
@@ -100,7 +105,8 @@ object BlockchainContractReaderService extends IOApp {
       httpServer(routes = Some(routes)) &>
         AssetContractReader.assetContractRequestsStream(r) &>
         AssetContractEventReader.assetContractEventRequestStream(r) &>
-        AddressFilter.addressFilterStream(r)
+        AddressFilter.addressFilterStream(r) &>
+        TransactionAssetContractFilter.assetContractRequestsStream(r)
     }.as(ExitCode.Success)
   }
 

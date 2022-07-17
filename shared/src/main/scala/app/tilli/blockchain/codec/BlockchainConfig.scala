@@ -50,6 +50,8 @@ object BlockchainConfig {
 
   val VersionToDataType = DataTypeToVersion.map(t => t._2 -> t._1)
 
+  val NullAddress = "0x0000000000000000000000000000000000000000"
+
   object EventType extends Enumeration {
     val approval, transfer, sale, ordersMatched, unknown = Value
   }

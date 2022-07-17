@@ -53,7 +53,7 @@ object AssetContractReader extends StreamTrait {
                 case Left(errorTrait) =>
                   val tilliJsonEventCommittable = toTilliJsonEventCommittable(committable)
                   handleDataProviderError(tilliJsonEventCommittable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
-              }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
+              }//.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
             }
             .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
             .map(_.passthrough)
@@ -62,31 +62,13 @@ object AssetContractReader extends StreamTrait {
     stream.compile.drain
   }
 
-  def toTilliJsonEventCommittable[F[_]](
-    committable: CommittableConsumerRecord[F, String, TilliAssetContractRequestEvent]
-  ): CommittableConsumerRecord[F, String, TilliJsonEvent] = {
-    CommittableConsumerRecord(
-      record = ConsumerRecord(
-        topic = committable.record.topic,
-        partition = committable.record.partition,
-        offset = committable.record.offset,
-        key = committable.record.key,
-        value = TilliJsonEvent(
-          header = committable.record.value.header,
-          data = committable.record.value.data.asJson
-        ),
-      ),
-      offset = committable.offset,
-    )
-  }
-
   def processRecord[F[_] : Sync : Async](
     source: AssetContractSource[F],
     record: ConsumerRecord[String, TilliAssetContractRequestEvent],
     rateLimiter: Limiter[F],
   ): F[Either[Throwable, Json]] = {
     import cats.implicits._
-    Sync[F].delay(log.info(s"Request for asset contract: ${record.value.asJson.spaces2}")) *>
+//    Sync[F].delay(log.info(s"Request for asset contract: ${record.value.asJson.spaces2}")) *>
       source.getAssetContract(
         record.value.data.assetContract.address,
         Some(rateLimiter),

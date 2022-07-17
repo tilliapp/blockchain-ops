@@ -39,10 +39,14 @@ case class AppConfig(
   inputTopicAssetContractEventRequest: InputTopic,
   outputTopicAssetContractEvent: OutputTopic,
 
+  outputTopicAssetContractRequest: OutputTopic,
+
   inputTopicAddressContractEvent: InputTopic,
   outputTopicAddressRequest: OutputTopic,
 
   outputTopicFailureEvent: OutputTopic,
+
+  inputTopicTransactionEvent: InputTopic,
 
   rateLimitOpenSea: RateLimitConfig,
   rateLimitEtherscan: RateLimitConfig,
@@ -50,6 +54,7 @@ case class AppConfig(
   mongoDbConfig: MongoDbConfig,
   mongoDbCollectionDataProviderCursor: String,
   mongoDbCollectionAddressRequestCache: String,
+  mongoDbCollectionAssetContract: String,
 )
 
 object AppConfig {
