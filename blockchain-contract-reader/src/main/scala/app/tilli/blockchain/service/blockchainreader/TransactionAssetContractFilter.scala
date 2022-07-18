@@ -12,6 +12,8 @@ import fs2.kafka._
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
 
+import scala.concurrent.duration.DurationLong
+
 object TransactionAssetContractFilter extends StreamTrait {
 
   def assetContractRequestsStream[F[_] : Async](
@@ -38,21 +40,20 @@ object TransactionAssetContractFilter extends StreamTrait {
           kafkaConsumer
             .consumerStream
             .subscribeTo(inputTopic.name)
-            .records
-            .chunks
-            .mapAsync(8) { chunk =>
-              val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
-              val processed = {
-                chunk.map { committable =>
-                  val processedRecord = processRecord(committable.record, r.assetContractCache).asInstanceOf[F[Either[Throwable, Option[AssetContractRequest]]]]
-                  processedRecord.map {
-                    case Right(result) => toProducerRecords(committable, result, outputTopicAssetContractRequest)
-                    case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
-                  } //.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
-                }.sequence
+            .partitionedRecords
+            .map { partitionStream =>
+              partitionStream.evalMap { committable =>
+                //            .mapAsync(1) { committable =>
+                val processedRecord = processRecord(committable.record, r.assetContractCache).asInstanceOf[F[Either[HttpClientErrorTrait, Option[AssetContractRequest]]]]
+                processedRecord.map {
+                  case Right(result) => toProducerRecords(committable, result, outputTopicAssetContractRequest)
+                  case Left(errorTrait) => handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.assetContractSource)
+                }.flatTap(r => Sync[F].delay(log.info(s"eventId=${committable.record.value.header.eventId}: Emitted=${r.records.size}. Committed=${committable.offset.topicPartition}:${committable.offset.offsetAndMetadata.offset}")))
               }
-              processed *> batch.commit
-            }
+            }.parJoinUnbounded
+            .through(fs2.kafka.KafkaProducer.pipe(kafkaProducer.producerSettings, producer))
+            .map(_.passthrough)
+            .through(commitBatchWithin(kafkaConsumerConfig.batchSize, kafkaConsumerConfig.batchDurationMs.milliseconds))
         )
     stream.compile.drain
   }
@@ -63,9 +64,7 @@ object TransactionAssetContractFilter extends StreamTrait {
   ): F[Either[Throwable, Option[AssetContractRequest]]] = {
     val chain = {
       for {
-        contract <- EitherT(Sync[F].pure(root.assetContractAddress.string.getOption(record.value.data).toRight(new IllegalStateException(s"Could not find asset contract from record: ${
-          record.value.data.noSpaces
-        }"))))
+        contract <- EitherT(Sync[F].pure(root.assetContractAddress.string.getOption(record.value.data).toRight(new IllegalStateException(s"Could not find asset contract from record: ${record.value.data.noSpaces}"))))
         lookup <- EitherT(assetContractCache.lookup(contract))
       } yield {
         if (lookup.isEmpty) Some(AssetContractRequest(AssetContract(address = contract)))
@@ -80,19 +79,18 @@ object TransactionAssetContractFilter extends StreamTrait {
     result: Option[AssetContractRequest],
     assetContractEventRequestTopic: OutputTopic,
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    val assetContractProducerRecord = result.map {
-      assetContractRequest =>
-        val tilliAssetContractRequestEvent = TilliAssetContractRequestEvent(assetContractRequest)
-        val key = tilliAssetContractRequestEvent.data.assetContract.address
-        val tilliJsonEvent = TilliJsonEvent(
-          header = tilliAssetContractRequestEvent.header,
-          data = tilliAssetContractRequestEvent.data.asJson
-        )
-        ProducerRecord(
-          assetContractEventRequestTopic.name,
-          key,
-          tilliJsonEvent,
-        )
+    val assetContractProducerRecord = result.map { assetContractRequest =>
+      val tilliAssetContractRequestEvent = TilliAssetContractRequestEvent(assetContractRequest)
+      val key = tilliAssetContractRequestEvent.data.assetContract.address
+      val tilliJsonEvent = TilliJsonEvent(
+        header = tilliAssetContractRequestEvent.header,
+        data = tilliAssetContractRequestEvent.data.asJson
+      )
+      ProducerRecord(
+        assetContractEventRequestTopic.name,
+        key,
+        tilliJsonEvent,
+      )
     }
     ProducerRecords(
       records = assetContractProducerRecord,
