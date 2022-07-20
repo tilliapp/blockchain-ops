@@ -353,4 +353,21 @@ object BlockchainClasses {
     startSync: Option[Boolean] = Some(false),
   )
 
+  case class SimpleTransaction(
+    transactionHash: Option[String],
+    toAddress: Option[String],
+    fromAddress: Option[String],
+    tokenId: Option[String],
+    assetContractAddress: Option[String],
+    assetContractName: Option[String],
+    assetContractType: Option[String],
+    transactionTime: Option[Instant],
+    totalPrice: Option[Long],
+  )
+
+  case class Doc(
+    data: SimpleTransaction,
+    assetContractType: Option[String],
+  )
+
 }

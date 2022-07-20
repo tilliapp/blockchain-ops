@@ -2,7 +2,7 @@ package app.tilli.blockchain.analytics.service
 
 import app.tilli.BlazeServer
 import app.tilli.blockchain.analytics.service.config.AppConfig.readerAppConfig
-import app.tilli.blockchain.codec.BlockchainClasses.TransactionRecord
+import app.tilli.blockchain.codec.BlockchainClasses.{Doc, TransactionRecord}
 import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
@@ -19,7 +19,7 @@ object AnalyticsService extends IOApp {
       appConfig <- ApplicationConfig()
       mongoClient <- MongoDbAdapter.resource(appConfig.mongoDbConfig.url)
       mongoDatabase <- Resource.eval(mongoClient.getDatabase(appConfig.mongoDbConfig.db))
-      transactionCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[TransactionRecord](appConfig.mongoDbCollectionTransaction))
+      transactionCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[Doc](appConfig.mongoDbCollectionTransaction))
 
     } yield Resources(
       appConfig = appConfig,
@@ -30,7 +30,7 @@ object AnalyticsService extends IOApp {
     resources.use { implicit r =>
 
       httpServer(routes = None) &>
-        NftHolding.load(r)
+        NftHolding.stream(r)
     }.as(ExitCode.Success)
 
   }
