@@ -18,6 +18,11 @@ case class AppConfig(
   kafkaConsumerConfiguration: KafkaConsumerConfiguration,
   kafkaProducerConfiguration: KafkaProducerConfiguration,
 
+
+  inputTopicAnalyticsAddressRequestEvent: InputTopic,
+  outputTopicAnalyticsAddressResult: OutputTopic,
+  outputTopicFailureEvent: OutputTopic,
+
   mongoDbConfig: MongoDbConfig,
   mongoDbCollectionTransaction: String,
 )
