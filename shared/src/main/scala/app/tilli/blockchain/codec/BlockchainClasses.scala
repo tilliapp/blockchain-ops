@@ -1,6 +1,6 @@
 package app.tilli.blockchain.codec
 
-import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAssetContractRequest, DataTypeToVersion}
+import app.tilli.blockchain.codec.BlockchainConfig.{AddressType, DataTypeAnalyticsResultEvent, DataTypeAssetContractRequest, DataTypeToVersion}
 import io.circe.Json
 import upperbound.Limiter
 
@@ -105,6 +105,22 @@ object BlockchainClasses {
     dataType: Option[String],
     version: Option[String],
   )
+
+  object Header {
+
+    def apply(
+      dataType: String,
+      trackingId: Option[UUID],
+    ): Header =
+      BlockchainClasses.Header(
+        trackingId = trackingId.getOrElse(UUID.randomUUID()),
+        eventTimestamp = Instant.now,
+        eventId = UUID.randomUUID(),
+        origin = List.empty,
+        dataType = Some(dataType),
+        version = DataTypeToVersion.get(dataType),
+      )
+  }
 
   case class TilliJsonEvent(
     header: Header,
@@ -352,5 +368,51 @@ object BlockchainClasses {
     attempt: Option[Int] = Some(1),
     startSync: Option[Boolean] = Some(false),
   )
+
+  case class SimpleTransaction(
+    transactionHash: Option[String],
+    toAddress: Option[String],
+    fromAddress: Option[String],
+    tokenId: Option[String],
+    assetContractAddress: Option[String],
+    assetContractName: Option[String],
+    assetContractType: Option[String],
+    transactionTime: Option[Instant],
+    totalPrice: Option[Long],
+  )
+
+  case class Doc(
+    data: SimpleTransaction,
+    assetContractType: Option[String],
+  )
+
+  case class AnalyticsRequest(
+    address: String,
+    assetContractAddress: Option[String],
+    tokenId: Option[String],
+  )
+
+  case class TilliAnalyticsAddressRequestEvent(
+    header: Header,
+    data: AnalyticsRequest,
+  )extends TilliEvent[AnalyticsRequest]
+
+  case class AnalyticsResult(
+    address: String,
+    tokenId: Option[String],
+    assetContractAddress: Option[String],
+    assetContractName: Option[String],
+    assetContractType: Option[String],
+    count: Option[Int],
+    duration: Option[Long],
+    originatedFromNullAddress: Boolean,
+    transactions: Option[List[String]],
+  )
+
+  case class TilliAnalyticsResultEvent(
+    header: Header,
+    data: AnalyticsResult,
+  )extends TilliEvent[AnalyticsResult]
+
 
 }

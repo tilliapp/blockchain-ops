@@ -31,6 +31,7 @@ lazy val root = (project in file("."))
     blockchainContractReader,
     blockchainTransactionReader,
     blockchainSink,
+    blockchainAnalytics,
   )
 
 lazy val shared = (project in file("shared"))
@@ -77,6 +78,20 @@ lazy val blockchainSink = (project in file("blockchain-sink"))
 lazy val blockchainTransactionReader = (project in file("blockchain-transaction-reader"))
   .settings(
     name := "blockchainTransactionReader",
+    sharedSettings,
+    libraryDependencies ++= Dependencies.core,
+    libraryDependencies ++= Dependencies.utils,
+    libraryDependencies ++= Dependencies.testDependencies,
+    libraryDependencies ++= Dependencies.apiDependencies,
+    libraryDependencies ++= Dependencies.dataDependencies,
+    libraryDependencies ++= Dependencies.serdesDependencies,
+    mainClass in assembly := Some("app.tilli.blockchain.service.blockchainreader.BlockchainTransactionReaderService"),
+    assemblyJarName in assembly := "run.jar"
+  ).dependsOn(shared)
+
+lazy val blockchainAnalytics = (project in file("blockchain-analytics"))
+  .settings(
+    name := "blockchainAnalytics",
     sharedSettings,
     libraryDependencies ++= Dependencies.core,
     libraryDependencies ++= Dependencies.utils,

@@ -14,6 +14,8 @@ object BlockchainConfig {
   val DataTypeTransactionEvent = "TransactionEvent"
   val DataTypeDataProviderError = "DataProviderError"
   val DataTypeDataProviderCursor = "DataProviderCursor"
+  val DataTypeAnalyticsRequest = "AnalyticsRequest"
+  val DataTypeAnalyticsResultEvent = "AnalyticsResult"
 
   val Version_20220617 = "2022-06-17"
   val DataTypeToVersion = Map(
@@ -25,6 +27,8 @@ object BlockchainConfig {
     DataTypeTransactionEvent -> Version_20220617,
     DataTypeDataProviderError -> Version_20220617,
     DataTypeDataProviderCursor -> Version_20220617,
+    DataTypeAnalyticsRequest ->  Version_20220617,
+    DataTypeAnalyticsResultEvent -> Version_20220617,
   )
 
   val dataProviderCovalentHq = new DataProvider(
@@ -45,6 +49,13 @@ object BlockchainConfig {
     source = UUID.fromString("7dc94bcb-c490-405b-8989-0efdace798f6"),
     provider = UUID.fromString("2365f620-d5b9-43c6-9dd4-986ee8477167"),
     name = Some("OpenSea API"),
+    defaultPage = "",
+  )
+
+  val dataProviderTilli = new DataProvider(
+    source = UUID.fromString("ca337dfe-9b34-4d44-ae6e-f62218100b0d"),
+    provider = UUID.fromString("f7bec9ac-5ff1-46a1-ae9a-f7f71874b85f"),
+    name = Some("Tilli"),
     defaultPage = "",
   )
 

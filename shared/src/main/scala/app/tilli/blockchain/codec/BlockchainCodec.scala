@@ -39,11 +39,18 @@ object BlockchainCodec {
   implicit lazy val codecTilliAssetContractEvent: Codec[TilliAssetContractEvent] = deriveCodec
   implicit lazy val codecTilliAssetContractRequestEvent: Codec[TilliAssetContractRequestEvent] = deriveCodec
 
+  implicit lazy val codecAnalyticsRequest: Codec[AnalyticsRequest] = deriveCodec
+  implicit lazy val codecTilliAnalyticsAddressRequestEvent: Codec[TilliAnalyticsAddressRequestEvent] = deriveCodec
+  implicit lazy val codecAnalyticsResult: Codec[AnalyticsResult] = deriveCodec
+
+  implicit lazy val codecTilliAnalyticsResultEvent: Codec[TilliAnalyticsResultEvent] = deriveCodec
+
   // FS kafka
   implicit val deserializerJson: Deserializer[IO, Json] = jsonDeserializer
   implicit val deserializerTilliJsonEvent: Deserializer[IO, TilliJsonEvent] = classDeserializer
   implicit val deserializerTilliAssetContractEvent: Deserializer[IO, TilliAssetContractEvent] = classDeserializer
   implicit val deserializerTilliAssetContractRequestEvent: Deserializer[IO, TilliAssetContractRequestEvent] = classDeserializer
+  implicit val deserializerTilliAnalyticsAddressRequest: Deserializer[IO, TilliAnalyticsAddressRequestEvent] = classDeserializer
 
   implicit val serializerJson: Serializer[IO, Json] = Fs2KafkaCodec.serializer
   implicit val serializerTilliJsonEvent: Serializer[IO, TilliJsonEvent] = Fs2KafkaCodec.serializer
@@ -51,6 +58,9 @@ object BlockchainCodec {
   implicit val serializerTilliDataProviderError: Serializer[IO, TilliDataProviderError] = Fs2KafkaCodec.serializer
   implicit val serializerTilliAssetContractEvent: Serializer[IO, TilliAssetContractEvent] = Fs2KafkaCodec.serializer
   implicit val serializerTilliAssetContractRequest: Serializer[IO, TilliAssetContractRequestEvent] = Fs2KafkaCodec.serializer
+
+  implicit val serializerTilliAnalyticsAddressRequest: Serializer[IO, TilliAnalyticsAddressRequestEvent] = Fs2KafkaCodec.serializer
+  implicit val serializerTilliAnalyticsResultEvent: Serializer[IO, TilliAnalyticsResultEvent] = Fs2KafkaCodec.serializer
 
   object InstantFromLongDecoder {
 
