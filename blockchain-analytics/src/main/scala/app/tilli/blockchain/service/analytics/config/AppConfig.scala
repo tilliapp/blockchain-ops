@@ -1,4 +1,4 @@
-package app.tilli.blockchain.analytics.service.config
+package app.tilli.blockchain.service.analytics.config
 
 import app.tilli.api.utils.HttpClientConfig
 import app.tilli.persistence.kafka.{KafkaConsumerConfiguration, KafkaProducerConfiguration}

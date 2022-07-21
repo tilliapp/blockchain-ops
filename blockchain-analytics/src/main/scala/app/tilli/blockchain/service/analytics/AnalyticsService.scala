@@ -1,8 +1,9 @@
-package app.tilli.blockchain.analytics.service
+package app.tilli.blockchain.service.analytics
 
 import app.tilli.BlazeServer
-import app.tilli.blockchain.analytics.service.config.AppConfig.readerAppConfig
+import app.tilli.blockchain.service.analytics.config.AppConfig.readerAppConfig
 import app.tilli.blockchain.codec.BlockchainClasses.Doc
+import app.tilli.blockchain.service.analytics
 import app.tilli.integration.kafka.KafkaSslConfig.sslConfig
 import app.tilli.persistence.kafka.SslConfig
 import app.tilli.persistence.mongodb.MongoDbAdapter
@@ -25,7 +26,7 @@ object AnalyticsService extends IOApp {
       transactionCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[Doc](appConfig.mongoDbCollectionTransaction))
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
 
-    } yield Resources[IO](
+    } yield analytics.Resources[IO](
       appConfig = appConfig,
       httpServerPort = appConfig.httpServerPort,
       sslConfig = Some(convertedSslConfig),
