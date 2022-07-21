@@ -19,13 +19,14 @@ case class AppConfig(
   outputTopicFailureEvent: OutputTopic,
 
   inputTopicDataProviderCursorEvent: InputTopic,
-
   inputTopicAssetContractEvent: InputTopic,
+  inputTopicAnalyticsResultEvent: InputTopic,
 
   mongoDbConfig: MongoDbConfig,
   mongoDbCollectionTransaction: String,
   mongoDbCollectionDataProviderCursor: String,
   mongoDbCollectionAssetContract: String,
+  mongoDbCollectionAnalyticsTransaction: String,
 )
 
 object AppConfig {
