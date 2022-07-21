@@ -1,7 +1,7 @@
 package app.tilli.blockchain.service.blockchainsink
 
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.service.blockchainsink.sink.{AssetContractSink, DataProviderCursorsSink, TransactionsSink}
+import app.tilli.blockchain.service.blockchainsink.sink.{AnalyticsSink, AssetContractSink, DataProviderCursorsSink, TransactionsSink}
 import app.tilli.logging.Logging
 import app.tilli.persistence.kafka.KafkaConsumer
 import cats.Parallel
@@ -15,13 +15,16 @@ object BlockchainSink extends Logging {
   )(implicit
     valueDeserializer: Deserializer[F, TilliJsonEvent],
     valueDeserializer2: Deserializer[F, TilliAssetContractEvent],
+    valueDeserializer3: Deserializer[F, TilliAnalyticsResultEvent],
   ): F[Unit] = {
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
     val kafkaConsumer2 = new KafkaConsumer[String, TilliAssetContractEvent](kafkaConsumerConfig, r.sslConfig)
+    val kafkaConsumer3 = new KafkaConsumer[String, TilliAnalyticsResultEvent](kafkaConsumerConfig, r.sslConfig)
     val inputTopicTransactions = r.appConfig.inputTopicTransactionEvent
     val inputTopicCursors = r.appConfig.inputTopicDataProviderCursorEvent
     val inputTopicAssertContract = r.appConfig.inputTopicAssetContractEvent
+    val inputTopicAnalyticsResultEvent = r.appConfig.inputTopicAnalyticsResultEvent
     val outputTopicFailure = r.appConfig.outputTopicFailureEvent
 
     import cats.implicits._
@@ -37,7 +40,11 @@ object BlockchainSink extends Logging {
       .compile
       .drain
 
-    transactions &> dataProviderCursors &> assetContracts
+    val analyticsResult: F[Unit] = AnalyticsSink.streamIntoDatabase(r, kafkaConsumer3, inputTopicAnalyticsResultEvent, outputTopicFailure)
+      .compile
+      .drain
+
+    transactions &> dataProviderCursors &> assetContracts &> analyticsResult
   }
 
 }

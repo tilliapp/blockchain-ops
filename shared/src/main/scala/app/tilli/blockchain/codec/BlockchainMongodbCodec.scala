@@ -21,6 +21,8 @@ object BlockchainMongodbCodec extends MongoJsonCodecs {
   implicit lazy val codecDataProviderCursor: Codec[DataProviderCursor] = deriveCodec
   implicit lazy val codecTransactionEventsResult: Codec[TransactionEventsResult] = deriveCodec
   implicit lazy val codecTransactionRecordData: Codec[TransactionRecordData] = deriveCodec
+  implicit lazy val codecAnalyticsResult: Codec[AnalyticsResult] = deriveCodec
+  implicit lazy val codecTilliAnalyticsResultEvent: Codec[TilliAnalyticsResultEvent] = deriveCodec
 
   implicit lazy val codecAssetContract: Codec[AssetContract] = deriveCodec
   implicit lazy val codecTilliAssetContractEvent: Codec[TilliAssetContractEvent] = deriveCodec

@@ -399,8 +399,8 @@ object BlockchainClasses {
 
   case class AnalyticsResult(
     address: String,
-    tokenId: Option[String],
-    assetContractAddress: Option[String],
+    tokenId: String,
+    assetContractAddress: String,
     assetContractName: Option[String],
     assetContractType: Option[String],
     count: Option[Int],

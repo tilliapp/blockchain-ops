@@ -1,7 +1,7 @@
 package app.tilli.blockchain.service.blockchainsink
 
 import app.tilli.BlazeServer
-import app.tilli.blockchain.codec.BlockchainClasses.{DataProviderCursorRecord, TilliAssetContractEvent, TransactionRecord}
+import app.tilli.blockchain.codec.BlockchainClasses.{DataProviderCursorRecord, TilliAnalyticsResultEvent, TilliAssetContractEvent, TransactionRecord}
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.service.blockchainsink.config.AppConfig.readerAppConfig
 import app.tilli.integration.kafka.KafkaSslConfig.sslConfig
@@ -24,6 +24,7 @@ object BlockchainSinkService extends IOApp {
       transactionCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[TransactionRecord](appConfig.mongoDbCollectionTransaction))
       dataProviderCursorCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[DataProviderCursorRecord](appConfig.mongoDbCollectionDataProviderCursor))
       assetContractEventCollection <-Resource.eval(mongoDatabase.getCollectionWithCodec[TilliAssetContractEvent](appConfig.mongoDbCollectionAssetContract))
+      analyticsTransactionCollection <-Resource.eval(mongoDatabase.getCollectionWithCodec[TilliAnalyticsResultEvent](appConfig.mongoDbCollectionAnalyticsTransaction))
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
     } yield Resources[IO](
       appConfig = appConfig,
@@ -34,6 +35,7 @@ object BlockchainSinkService extends IOApp {
       transactionCollection = transactionCollection,
       dataProviderCursorCollection = dataProviderCursorCollection,
       assetContractEventCollection = assetContractEventCollection,
+      analyticsTransactionCollection = analyticsTransactionCollection,
     )
 
     import app.tilli.blockchain.codec.BlockchainCodec._
