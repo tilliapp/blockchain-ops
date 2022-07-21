@@ -155,19 +155,26 @@ object NftHolding extends StreamTrait {
               case _ => Left(new IllegalStateException("invalid number of transactions in group of 2"))
             }
           }
-          .map(_.map(res =>
-            AnalyticsResult(
-              address = address,
-              tokenId = firstRecord.data.tokenId,
-              assetContractAddress = firstRecord.data.assetContractAddress,
-              assetContractName = firstRecord.data.assetContractName,
-              assetContractType = firstRecord.assetContractType,
-              count = Option(res._1),
-              duration = res._2,
-              originatedFromNullAddress = firstRecord.data.fromAddress.contains(NullAddress),
-              transactions = Some(res._3),
-            )
-          ))
+          .map {
+            case Right(res) =>
+              for {
+                tokenId <- firstRecord.data.tokenId.toRight(new IllegalStateException(s"Could not find any records for address $address"))
+                assetContractAddress <- firstRecord.data.assetContractAddress.toRight(new IllegalStateException(s"Could not find any asset contract address for address $address"))
+              } yield {
+                AnalyticsResult(
+                  address = address,
+                  tokenId = tokenId,
+                  assetContractAddress = assetContractAddress,
+                  assetContractName = firstRecord.data.assetContractName,
+                  assetContractType = firstRecord.assetContractType,
+                  count = Option(res._1),
+                  duration = res._2,
+                  originatedFromNullAddress = firstRecord.data.fromAddress.contains(NullAddress),
+                  transactions = Some(res._3),
+                )
+              }
+            case Left(err) => Left(err)
+          }
         transactions.sequence
       }
     tokens
