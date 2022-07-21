@@ -52,6 +52,13 @@ object BlockchainConfig {
     defaultPage = "",
   )
 
+  val dataProviderTilli = new DataProvider(
+    source = UUID.fromString("ca337dfe-9b34-4d44-ae6e-f62218100b0d"),
+    provider = UUID.fromString("f7bec9ac-5ff1-46a1-ae9a-f7f71874b85f"),
+    name = Some("Tilli"),
+    defaultPage = "",
+  )
+
   val VersionToDataType = DataTypeToVersion.map(t => t._2 -> t._1)
 
   val NullAddress = "0x0000000000000000000000000000000000000000"

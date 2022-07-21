@@ -6,6 +6,7 @@ import app.tilli.blockchain.codec.BlockchainConfig._
 import app.tilli.logging.Logging
 import app.tilli.utils.{InputTopic, OutputTopic}
 import fs2.kafka._
+import io.circe.Encoder
 import io.circe.optics.JsonPath.root
 import io.circe.syntax.EncoderOps
 
@@ -136,8 +137,10 @@ trait StreamTrait extends Logging {
     )
   }
 
-  def toTilliJsonEventCommittable[F[_]](
-    committable: CommittableConsumerRecord[F, String, TilliAssetContractRequestEvent]
+  def toTilliJsonEventCommittable[F[_], A](
+    committable: CommittableConsumerRecord[F, String, TilliEvent[A]]
+  )(implicit
+    encoder: Encoder[A]
   ): CommittableConsumerRecord[F, String, TilliJsonEvent] = {
     CommittableConsumerRecord(
       record = ConsumerRecord(
@@ -153,4 +156,29 @@ trait StreamTrait extends Logging {
       offset = committable.offset,
     )
   }
+
+//  def toTilliEventCommittable[F[_], A, B](
+//    committable: CommittableConsumerRecord[F, String, TilliJsonEvent]
+//  )(implicit
+//    decoder: Decoder[A]
+//  ): Either[Throwable, CommittableConsumerRecord[F, String, TilliEvent[A]]] = {
+//    import io.circe.Decoder
+//    committable.record.value.data.as[A] map { d =>
+//      CommittableConsumerRecord(
+//        record = ConsumerRecord(
+//          topic = committable.record.topic,
+//          partition = committable.record.partition,
+//          offset = committable.record.offset,
+//          key = committable.record.key,
+//          value = new TilliEvent[A] {
+//            def header = committable.record.value.header
+//
+//            def data = d
+//          },
+//        ),
+//        offset = committable.offset,
+//      )
+//    }
+//  }
+
 }

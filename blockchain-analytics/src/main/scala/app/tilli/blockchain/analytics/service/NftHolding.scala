@@ -3,13 +3,16 @@ package app.tilli.blockchain.analytics.service
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainConfig.{ContractTypes, DataTypeAnalyticsResultEvent, NullAddress}
-import app.tilli.logging.Logging
+import app.tilli.blockchain.dataprovider.TilliDataProvider
+import app.tilli.blockchain.service.StreamTrait
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
-import app.tilli.utils.OutputTopic
+import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.MonadThrow
 import cats.effect.{Async, Sync}
 import cats.implicits._
 import fs2.kafka._
+import io.circe.Encoder
+import io.circe.syntax.EncoderOps
 import mongo4cats.bson.Document
 import mongo4cats.collection.MongoCollection
 import mongo4cats.collection.operations.{Aggregate, Filter, Projection}
@@ -17,23 +20,24 @@ import mongo4cats.collection.operations.{Aggregate, Filter, Projection}
 import java.time.Duration
 import scala.concurrent.duration.DurationLong
 
-object NftHolding extends Logging {
+object NftHolding extends StreamTrait {
 
   def stream[F[_] : Sync : Async](
     r: Resources[F],
   )(implicit
     valueDeserializer: Deserializer[F, TilliAnalyticsAddressRequestEvent],
     keySerializer: RecordSerializer[F, String],
-    valueSerializer: RecordSerializer[F, TilliAnalyticsResultEvent]
+    valueSerializer: RecordSerializer[F, TilliJsonEvent]
   ): F[Unit] = {
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaProducerConfig = r.appConfig.kafkaProducerConfiguration
     val kafkaConsumer = new KafkaConsumer[String, TilliAnalyticsAddressRequestEvent](kafkaConsumerConfig, r.sslConfig)
-    val kafkaProducer = new KafkaProducer[String, TilliAnalyticsResultEvent](kafkaProducerConfig, r.sslConfig)
+    val kafkaProducer = new KafkaProducer[String, TilliJsonEvent](kafkaProducerConfig, r.sslConfig)
     val inputTopic = r.appConfig.inputTopicAnalyticsAddressRequestEvent
     val outputTopic = r.appConfig.outputTopicAnalyticsAddressResult
-    val outputTopicFailure = r.appConfig.outputTopicFailureEvent // TODO: USE THIS
+    val outputTopicFailure = r.appConfig.outputTopicFailureEvent
 
+    import app.tilli.blockchain.codec.BlockchainCodec._
     import cats.implicits._
     import fs2.kafka._
     val stream =
@@ -52,10 +56,7 @@ object NftHolding extends Logging {
                     case Right(result) =>
                       Sync[F].pure(toProducerRecords(committable.record, committable.offset, result, outputTopic))
                     case Left(err) =>
-                      Sync[F].pure(log.error(s"An error occurred while processing address $address", err)) *>
-                        Sync[F].raiseError(err)
-                        ???
-                    //Sync[F].pure(handleDataProviderError(committable, errorTrait, inputTopic, outputTopicFailure, r.transactionEventSource))
+                      Sync[F].pure(handleDataProviderError(toTilliJsonEventCommittable(committable), err, inputTopic, outputTopicFailure, TilliDataProvider))
                   }
               }
             }.parJoinUnbounded
@@ -70,23 +71,12 @@ object NftHolding extends Logging {
   def load[F[_] : Async : Sync](
     r: Resources[F],
     address: String,
-  ): F[Either[IllegalStateException, List[AnalyticsResult]]] = {
-    //    val address = "0xbecb05b9335fc0c53aeab1c09733cdf9a0cde85e"
-    //    val address = "0x1662d66493ba8d210c2d129fbab0e8de04fe9ede"
-    //    val address = "0x6eb534ed1329e991842b55be375abc63fe7c0e2b"
-
-    val stream = loadByAddress(address, r.transactionCollection)
+  ): F[Either[Throwable, List[AnalyticsResult]]] =
+    loadByAddress(address, r.transactionCollection)
       .flatMap {
-        case Left(err) => ??? // Sync[F].raiseError(err)
+        case Left(err) => Sync[F].pure(Left(err))
         case Right(res) => Sync[F].delay(tally(address, res))
       }
-    //      .flatTap {
-    //        case Left(err) => IO(log.error(s"An error occurred while processing address: $address", err))
-    //        case Right(res) => IO(res.foreach(println))
-    //      }
-
-    stream //.asInstanceOf[F[Unit]]
-  }
 
   def loadByAddress[F[_] : Async](
     address: String,
@@ -117,7 +107,7 @@ object NftHolding extends Logging {
           .include("data.assetContractName")
           //          .include("data.assetContractType")
           .include("data.transactionTime")
-          //          .include("data.totalPrice")
+          //          .include("data.totalPrice") // TODO: Enable when we fix the price issue
           .computed("assetContractType", Document("$arrayElemAt" -> List("$schema.data.schema", 0)))
       )
       .matchBy(Filter.ne("assetContractType", ERC20))
@@ -190,18 +180,26 @@ object NftHolding extends Logging {
     offset: CommittableOffset[F],
     result: List[AnalyticsResult],
     outputTopic: OutputTopic,
-  ): ProducerRecords[CommittableOffset[F], String, TilliAnalyticsResultEvent] = {
+  )(implicit
+    encoder: Encoder[AnalyticsResult],
+  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
     val producerRecords = result.map { ar =>
-      val event = TilliAnalyticsResultEvent(
+      val event = TilliJsonEvent(
         header = BlockchainClasses.Header(DataTypeAnalyticsResultEvent, Some(record.value.header.trackingId)),
-        data = ar,
+        data = ar.asJson,
       )
-      ProducerRecord(outputTopic.name, event.data.address, event)
+      ProducerRecord(outputTopic.name, ar.address, event)
     }
     ProducerRecords(
       producerRecords,
       offset
     )
   }
+
+  override def toRetryPageProducerRecords[F[_]](
+    record: ConsumerRecord[String, TilliJsonEvent],
+    offset: CommittableOffset[F],
+    inputTopic: InputTopic,
+  ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = ???
 
 }
