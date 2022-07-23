@@ -28,7 +28,7 @@ object BlockchainSink extends Logging {
     val outputTopicFailure = r.appConfig.outputTopicFailureEvent
 
     import cats.implicits._
-    val transactions: F[Unit] = TransactionsSink.streamTransactionsIntoDatabase(r, kafkaConsumer, inputTopicTransactions, outputTopicFailure)
+    val transactions: F[Unit] = TransactionsSink.streamIntoDatabase(r, kafkaConsumer, inputTopicTransactions, outputTopicFailure)
       .compile
       .drain
 
