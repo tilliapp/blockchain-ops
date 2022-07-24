@@ -26,6 +26,7 @@ case class AppConfig(
 
   mongoDbConfig: MongoDbConfig,
   mongoDbCollectionTransaction: String,
+  mongoDbCollectionAssetContract: String,
 )
 
 object AppConfig {

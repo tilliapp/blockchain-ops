@@ -4,6 +4,7 @@ import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.codec.BlockchainConfig.DataTypeAnalyticsRequest
 import app.tilli.blockchain.service.StreamTrait
+import app.tilli.collection.AssetContractCache
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
 import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.effect.{Async, Sync}
@@ -45,9 +46,24 @@ object AnalyticsTrigger extends StreamTrait {
               partitionStream.evalMap { committable =>
                 getAddressFromDebeziumTransactionEvent(committable.record.value) match {
                   case Left(err) =>
-                    log.error("An error occurred while processing debezium event. Continuing processing", err)
-                    Sync[F].pure(toProducerRecords(committable.offset, List.empty, outputTopic))
-                  case Right(addresses) => Sync[F].pure(toProducerRecords(committable.offset, addresses, outputTopic))
+                    Sync[F].delay(log.error("An error occurred while processing debezium event. Continuing processing", err)) *>
+                      Sync[F].pure(toProducerRecords(committable.offset, List.empty, outputTopic))
+                  case Right(addresses) =>
+                    val lookup = addresses
+                      .map(address => isAssetContract(address, r.assetContractCache))
+                      .sequence
+                      .map(_.sequence)
+                      .map(e => e.map(_.zip(addresses)))
+                      .map(_.map(_.filter(!_._1))) // only keep non asset contracts
+                      .map(_.map(_.map(_._2)))
+                      .asInstanceOf[F[Either[Throwable, List[String]]]]
+
+                    lookup.flatMap {
+                      case Left(err) =>
+                        Sync[F].delay(log.error(s"An error occurred while looking up addresses: $addresses", err)) *>
+                          Sync[F].pure(toProducerRecords(committable.offset, List.empty, outputTopic))
+                      case Right(wallets) => Sync[F].pure(toProducerRecords(committable.offset, wallets, outputTopic))
+                    }
                 }
               }
             }.parJoinUnbounded
@@ -73,6 +89,14 @@ object AnalyticsTrigger extends StreamTrait {
           )
       }
   }
+
+  def isAssetContract[F[_] : Sync : Async](
+    contract: String,
+    assetContractCache: AssetContractCache[F],
+  ): F[Either[Throwable, Boolean]] =
+    assetContractCache
+      .lookup(contract)
+      .map(_.map(_.nonEmpty))
 
   def toProducerRecords[F[_]](
     offset: CommittableOffset[F],
