@@ -3,14 +3,15 @@ package app.tilli.blockchain.service.blockchainsink.sink
 import app.tilli.blockchain.codec.BlockchainClasses.TilliAnalyticsResultEvent
 import app.tilli.blockchain.service.blockchainsink.Resources
 import cats.effect.{Async, Sync}
+import com.mongodb.bulk.BulkWriteResult
 import mongo4cats.collection.{BulkWriteOptions, ReplaceOptions, WriteCommand}
 
 object AnalyticsSink extends SinkWriter[TilliAnalyticsResultEvent] {
 
   override def write[F[_] : Sync : Async](
     resources: Resources[F],
-    data: Seq[TilliAnalyticsResultEvent],
-  ): F[Either[Throwable, Boolean]] = {
+    data: List[TilliAnalyticsResultEvent],
+  ): F[Either[Throwable, BulkWriteResult]] = {
     import cats.implicits._
     import mongo4cats.collection.operations._
     val commands = data
@@ -30,6 +31,5 @@ object AnalyticsSink extends SinkWriter[TilliAnalyticsResultEvent] {
           .bypassDocumentValidation(true)
       )
       .attempt
-      .map(_.map(_.wasAcknowledged()))
   }
 }

@@ -36,7 +36,8 @@ object AnalyticsService extends IOApp {
     resources.use { implicit r =>
       import app.tilli.blockchain.codec.BlockchainCodec._
       httpServer(routes = None) &>
-        NftHolding.stream(r)
+        NftHolding.stream(r) &>
+        AnalyticsTrigger.stream(r)
     }.as(ExitCode.Success)
 
   }

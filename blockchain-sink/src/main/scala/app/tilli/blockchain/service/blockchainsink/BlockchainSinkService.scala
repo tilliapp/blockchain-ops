@@ -9,6 +9,7 @@ import app.tilli.persistence.kafka.SslConfig
 import app.tilli.persistence.mongodb.MongoDbAdapter
 import app.tilli.utils.ApplicationConfig
 import cats.effect._
+import com.mongodb.WriteConcern
 
 object BlockchainSinkService extends IOApp {
 
@@ -16,15 +17,32 @@ object BlockchainSinkService extends IOApp {
     implicit val async = Async[IO]
     val concurrent = Concurrent[IO]
 
+    val writeConcern = WriteConcern.W1
+
     import app.tilli.blockchain.codec.BlockchainMongodbCodec._
     val resources = for {
       appConfig <- ApplicationConfig()
       mongoClient <- MongoDbAdapter.resource(appConfig.mongoDbConfig.url)
       mongoDatabase <- Resource.eval(mongoClient.getDatabase(appConfig.mongoDbConfig.db))
-      transactionCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[TransactionRecord](appConfig.mongoDbCollectionTransaction))
-      dataProviderCursorCollection <- Resource.eval(mongoDatabase.getCollectionWithCodec[DataProviderCursorRecord](appConfig.mongoDbCollectionDataProviderCursor))
-      assetContractEventCollection <-Resource.eval(mongoDatabase.getCollectionWithCodec[TilliAssetContractEvent](appConfig.mongoDbCollectionAssetContract))
-      analyticsTransactionCollection <-Resource.eval(mongoDatabase.getCollectionWithCodec[TilliAnalyticsResultEvent](appConfig.mongoDbCollectionAnalyticsTransaction))
+      transactionCollection <- Resource.eval(
+        mongoDatabase
+          .withWriteConcern(writeConcern)
+          .getCollectionWithCodec[TransactionRecord](appConfig.mongoDbCollectionTransaction)
+      )
+      dataProviderCursorCollection <- Resource.eval(
+        mongoDatabase
+          .withWriteConcern(writeConcern)
+          .getCollectionWithCodec[DataProviderCursorRecord](appConfig.mongoDbCollectionDataProviderCursor)
+      )
+      assetContractEventCollection <- Resource.eval(
+        mongoDatabase
+          .withWriteConcern(writeConcern)
+          .getCollectionWithCodec[TilliAssetContractEvent](appConfig.mongoDbCollectionAssetContract)
+      )
+      analyticsTransactionCollection <- Resource.eval(mongoDatabase
+        .withWriteConcern(writeConcern)
+        .getCollectionWithCodec[TilliAnalyticsResultEvent](appConfig.mongoDbCollectionAnalyticsTransaction)
+      )
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
     } yield Resources[IO](
       appConfig = appConfig,

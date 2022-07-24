@@ -51,7 +51,7 @@ object NftHolding extends StreamTrait {
             .map { partitionStream =>
               partitionStream.evalMap { committable =>
                 val address = committable.record.value.data.address
-                load(r, address).asInstanceOf[F[Either[Throwable, List[AnalyticsResult]]]]
+                load(r, address)
                   .flatMap {
                     case Right(result) =>
                       Sync[F].pure(toProducerRecords(committable.record, committable.offset, result, outputTopic))

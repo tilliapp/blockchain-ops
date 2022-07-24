@@ -3,64 +3,31 @@ package app.tilli.blockchain.service.blockchainsink.sink
 import app.tilli.blockchain.codec.BlockchainClasses.{TilliJsonEvent, TransactionRecord, TransactionRecordData}
 import app.tilli.blockchain.codec.BlockchainCodec.codecTransactionRecordData
 import app.tilli.blockchain.service.blockchainsink.Resources
-import app.tilli.logging.Logging
-import app.tilli.persistence.kafka.KafkaConsumer
-import app.tilli.utils.{InputTopic, OutputTopic}
 import cats.effect.{Async, Sync}
-import fs2.Chunk
-import fs2.kafka.{CommittableConsumerRecord, Deserializer}
+import com.mongodb.bulk.BulkWriteResult
 import io.circe.Json
 import io.circe.optics.JsonPath.root
 import mongo4cats.collection.{BulkWriteOptions, ReplaceOptions, WriteCommand}
 
-object TransactionsSink extends Logging {
+object TransactionsSink extends SinkWriter[TilliJsonEvent] {
 
-  def streamTransactionsIntoDatabase[F[_] : Async](
-    resources: Resources[F],
-    kafkaConsumer: KafkaConsumer[String, TilliJsonEvent],
-    inputTopicTransactions: InputTopic,
-    outputTopicFailure: OutputTopic,
-  )(implicit
-    valueDeserializer: Deserializer[F, TilliJsonEvent],
-  ): fs2.Stream[F, Unit] = {
-    import cats.implicits._
-    import fs2.kafka._
-    kafkaConsumer
-      .consumerStream
-      .subscribeTo(inputTopicTransactions.name)
-      .records
-      .chunks
-      .mapAsync(8) { chunk =>
-        val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
-        val processed = writeTransactions(resources, transform(chunk))
-          .flatMap {
-            case Right(_) => Sync[F].pure()
-            case Left(throwable) =>
-              log.error(s"Transactions: Write failed: ${throwable.getMessage}")
-              Sync[F].raiseError(throwable).asInstanceOf[F[Unit]]
-          }
-
-        Sync[F].delay(
-          log.info(s"Transactions: Writing batch of size ${chunk.size}: ${
-            batch.offsets.lastOption.map(t => s"${t._1}:${t._2.offset()}"
-            ).getOrElse("No offset")
-          }")) *> processed *> batch.commit
-      }
-  }
+  override val concurrency: Int = 8
 
   def transform[F[_]](
-    chunkRecords: Chunk[CommittableConsumerRecord[F, String, TilliJsonEvent]],
-  ): List[TransactionRecord] = {
+    chunkRecords: List[TilliJsonEvent],
+  ): Either[Throwable, List[TransactionRecord]] = {
+    import cats.implicits._
     chunkRecords
-      .toList
-      .map(_.record.value.data)
-      .map { json =>
-        val Right(record) = json.as[TransactionRecordData](codecTransactionRecordData)
-        TransactionRecord(
-          key = getKey(json).get, // TODO: This is gonna blow up for sure
-          data = record,
-        )
-      }
+      .map(event =>
+        for {
+          record <- event.data.as[TransactionRecordData](codecTransactionRecordData)
+          key <- getKey(event.data).toRight(new IllegalStateException(s"No key could be extracted from event with header: ${event.header}"))
+        } yield
+          TransactionRecord(
+            key = key,
+            data = record,
+          )
+      ).sequence
   }
 
   def getKey(json: Json): Option[String] = {
@@ -71,28 +38,31 @@ object TransactionsSink extends Logging {
     } yield s"$transactionHash-$transactionOffset-$logOffset"
   }
 
-  def writeTransactions[F[_] : Sync : Async](
+  override def write[F[_] : Sync : Async](
     resources: Resources[F],
-    data: Seq[TransactionRecord],
-  ): F[Either[Throwable, Boolean]] = {
+    data: List[TilliJsonEvent],
+  ): F[Either[Throwable, BulkWriteResult]] = {
     import cats.implicits._
     import mongo4cats.collection.operations._
 
-    val commands = data.map(t =>
-      WriteCommand.ReplaceOne(
-        filter = Filter.eq("key", t.key),
-        replacement = t,
-        options = ReplaceOptions().upsert(true),
-      )
-    )
-    resources.transactionCollection
-      .bulkWrite(commands,
-        BulkWriteOptions()
-          .ordered(false)
-          .bypassDocumentValidation(true)
-      )
-      .attempt
-      .map(_.map(_.wasAcknowledged()))
+    transform(data) match {
+      case Left(err) => Sync[F].raiseError(err)
+      case Right(td) =>
+        val commands = td.map(t =>
+          WriteCommand.ReplaceOne(
+            filter = Filter.eq("key", t.key),
+            replacement = t,
+            options = ReplaceOptions().upsert(true),
+          )
+        )
+        resources.transactionCollection
+          .bulkWrite(commands,
+            BulkWriteOptions()
+              .ordered(false)
+              .bypassDocumentValidation(true)
+          )
+          .attempt
+    }
   }
 
 }

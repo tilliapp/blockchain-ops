@@ -110,7 +110,7 @@ object BlockchainClasses {
 
     def apply(
       dataType: String,
-      trackingId: Option[UUID],
+      trackingId: Option[UUID] = None,
     ): Header =
       BlockchainClasses.Header(
         trackingId = trackingId.getOrElse(UUID.randomUUID()),
@@ -413,6 +413,5 @@ object BlockchainClasses {
     header: Header,
     data: AnalyticsResult,
   )extends TilliEvent[AnalyticsResult]
-
 
 }
