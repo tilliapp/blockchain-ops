@@ -8,6 +8,8 @@ import mongo4cats.collection.{BulkWriteOptions, ReplaceOptions, WriteCommand}
 
 object AnalyticsSink extends SinkWriter[TilliAnalyticsResultEvent] {
 
+  override val concurrency: Int = 8
+
   override def write[F[_] : Sync : Async](
     resources: Resources[F],
     data: List[TilliAnalyticsResultEvent],
