@@ -20,7 +20,7 @@ object BlockchainSink extends Logging {
     val kafkaConsumerConfig = r.appConfig.kafkaConsumerConfiguration
     val kafkaConsumer = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
     val kafkaConsumer2 = new KafkaConsumer[String, TilliAssetContractEvent](kafkaConsumerConfig, r.sslConfig)
-    val kafkaConsumer3 = new KafkaConsumer[String, TilliAnalyticsResultEvent](kafkaConsumerConfig, r.sslConfig)
+    val kafkaConsumer3 = new KafkaConsumer[String, TilliJsonEvent](kafkaConsumerConfig, r.sslConfig)
     val inputTopicTransactions = r.appConfig.inputTopicTransactionEvent
     val inputTopicCursors = r.appConfig.inputTopicDataProviderCursorEvent
     val inputTopicAssertContract = r.appConfig.inputTopicAssetContractEvent
