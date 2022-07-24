@@ -12,7 +12,7 @@ trait SinkWriter[IN] extends Logging {
 
   def name: String = this.getClass.getSimpleName
 
-  def concurrency: Int = 2
+  def concurrency: Int = 4
 
   def streamIntoDatabase[F[_] : Async](
     resources: Resources[F],
@@ -24,6 +24,7 @@ trait SinkWriter[IN] extends Logging {
   ): fs2.Stream[F, Unit] = {
     import cats.implicits._
     import fs2.kafka._
+    log.info(s"Running $concurrency concurrency reading from topic ${inputTopic.name}")
     kafkaConsumer
       .consumerStream
       .subscribeTo(inputTopic.name)
