@@ -99,7 +99,6 @@ object BlockchainContractReaderService extends IOApp {
     }.as(ExitCode.Success)
   }
 
-
   def httpServer[F[_] : Async](
     routes: Option[HttpRoutes[F]] = None,
   )(implicit r: Resources): F[Unit] =

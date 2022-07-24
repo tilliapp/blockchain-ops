@@ -4,11 +4,8 @@ import app.tilli.blockchain.codec.BlockchainClasses.{TilliAnalyticsResultEvent, 
 import app.tilli.blockchain.service.blockchainsink.Resources
 import cats.effect.{Async, Sync}
 import com.mongodb.bulk.BulkWriteResult
-import io.circe.Decoder.Result
 import io.circe.syntax.EncoderOps
 import mongo4cats.collection.{BulkWriteOptions, ReplaceOptions, WriteCommand}
-
-import java.util.UUID
 
 object AnalyticsSink extends SinkWriter {
 
@@ -18,11 +15,10 @@ object AnalyticsSink extends SinkWriter {
     resources: Resources[F],
     data: List[TilliJsonEvent],
   ): F[Either[Throwable, Option[BulkWriteResult]]] = {
-    import app.tilli.blockchain.codec.BlockchainCodec.codecTilliAnalyticsResultEvent
-    import app.tilli.blockchain.codec.BlockchainCodec.codecTilliJsonEvent
+    import app.tilli.blockchain.codec.BlockchainCodec._
     import cats.implicits._
     import mongo4cats.collection.operations._
-    val decoded  = data
+    val decoded = data
       .map(j => (j.header.eventId, j.asJson.as[TilliAnalyticsResultEvent]))
       .partition(r => r._2.isLeft)
 

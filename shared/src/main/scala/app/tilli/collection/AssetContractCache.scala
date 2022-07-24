@@ -33,7 +33,7 @@ class AssetContractCache[F[_] : Sync](
               .flatMap {
                 case Left(err) => Sync[F].pure(Left(new IllegalStateException(err)))
                 case Right(res) => res match {
-                  case Some(res) => insert(assetContract, assetContract) *> Sync[F].pure(Right(Option(assetContract)))
+                  case Some(_) => insert(assetContract, assetContract) *> Sync[F].pure(Right(Option(assetContract)))
                   case None => insert(assetContract, assetContract) *> Sync[F].pure(Right(None))
                 }
               }

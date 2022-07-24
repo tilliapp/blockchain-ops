@@ -141,7 +141,7 @@ object AddressFilter extends StreamTrait {
         case Left(err) => F.raiseError(err)
         case Right(res) => res match {
           case None => // we have not emitted any requests at all
-            getAddressType(addressTypeCache, assetContractTypeSource, rateLimiter, a) // Later replace with call to mongo and then etherscan if no mongo
+            getAddressType(addressTypeCache, assetContractTypeSource, rateLimiter, a) // TODO: TIL-27: Later replace with call to mongo and then etherscan if no mongo
               .flatMap {
                 case Right(adt) => // if the address type is contract then skip
                   if (adt.isContract.contains(false)) {
