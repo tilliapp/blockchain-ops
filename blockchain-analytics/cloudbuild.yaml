@@ -26,7 +26,7 @@ steps:
       - '--platform=managed'
       - '--service-account=tilli-prod-app-run@eastern-moment-343601.iam.gserviceaccount.com'
       - '--cpu=1'
-      - '--memory=1024Mi'
+      - '--memory=4Gi'
       - '--max-instances=1'
       - '--min-instances=1'
       - '--no-cpu-throttling'
