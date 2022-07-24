@@ -24,6 +24,11 @@ steps:
       - update
       - $_SERVICE_NAME
       - '--platform=managed'
+      - '--cpu=1'
+      - '--memory=512Mi'
+      - '--max-instances=1'
+      - '--min-instances=1'
+      - '--no-cpu-throttling'
       - '--image=$_GCR_HOSTNAME/$PROJECT_ID/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA'
       - >-
         --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID,$_LABELS

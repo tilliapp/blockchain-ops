@@ -10,7 +10,7 @@ import fs2.kafka.Deserializer
 
 trait SinkWriter[IN] extends Logging {
 
-  def name = this.getClass.getSimpleName
+  def name: String = this.getClass.getSimpleName
 
   def concurrency: Int = 2
 

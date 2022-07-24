@@ -26,7 +26,7 @@ object AssetContractSink extends Logging {
       .subscribeTo(inputTopic.name)
       .records
       .chunks
-      .mapAsync(2) { chunk =>
+      .mapAsync(4) { chunk =>
         val batch = CommittableOffsetBatch.fromFoldableMap(chunk)(_.offset)
         val processed = write(resources, chunk.toList.map(_.record.value))
           .flatMap {
