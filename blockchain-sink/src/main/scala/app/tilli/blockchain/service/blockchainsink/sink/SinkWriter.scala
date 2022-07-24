@@ -35,7 +35,7 @@ trait SinkWriter[IN] extends Logging {
           .flatMap {
             case Right(bulkWriteResult) =>
               if (bulkWriteResult.wasAcknowledged()) Sync[F].pure()
-              else Sync[F].raiseError(new IllegalStateException("Mongodb did not acknowledge write of chunk")) //.asInstanceOf[F[Unit]]
+              else Sync[F].raiseError(new IllegalStateException("Mongodb did not acknowledge write of chunk")).asInstanceOf[F[Unit]]
             case Left(throwable) =>
               log.error(s"$name: Write failed: ${throwable.getMessage}")
               Sync[F].raiseError(throwable).asInstanceOf[F[Unit]]

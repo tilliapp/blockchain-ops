@@ -31,6 +31,5 @@ object AnalyticsSink extends SinkWriter[TilliAnalyticsResultEvent] {
           .bypassDocumentValidation(true)
       )
       .attempt
-      .map(_.map(_.wasAcknowledged()))
   }
 }
