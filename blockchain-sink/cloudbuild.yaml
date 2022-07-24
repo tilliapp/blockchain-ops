@@ -24,6 +24,7 @@ steps:
       - update
       - $_SERVICE_NAME
       - '--platform=managed'
+      - '--service-account=tilli-prod-app-run@eastern-moment-343601.iam.gserviceaccount.com'
       - '--cpu=1'
       - '--memory=512Mi'
       - '--max-instances=1'
