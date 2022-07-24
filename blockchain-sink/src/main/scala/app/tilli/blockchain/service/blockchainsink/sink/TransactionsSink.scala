@@ -9,7 +9,7 @@ import io.circe.Json
 import io.circe.optics.JsonPath.root
 import mongo4cats.collection.{BulkWriteOptions, ReplaceOptions, WriteCommand}
 
-object TransactionsSink extends SinkWriter[TilliJsonEvent] {
+object TransactionsSink extends SinkWriter {
 
   override val concurrency: Int = 8
 
@@ -41,7 +41,7 @@ object TransactionsSink extends SinkWriter[TilliJsonEvent] {
   override def write[F[_] : Sync : Async](
     resources: Resources[F],
     data: List[TilliJsonEvent],
-  ): F[Either[Throwable, BulkWriteResult]] = {
+  ): F[Either[Throwable, Option[BulkWriteResult]]] = {
     import cats.implicits._
     import mongo4cats.collection.operations._
 
@@ -61,6 +61,7 @@ object TransactionsSink extends SinkWriter[TilliJsonEvent] {
               .ordered(false)
               .bypassDocumentValidation(true)
           )
+          .map(Option(_))
           .attempt
     }
   }

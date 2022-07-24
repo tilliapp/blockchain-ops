@@ -1,5 +1,6 @@
 package app.tilli.blockchain.service.blockchainsink.sink
 
+import app.tilli.blockchain.codec.BlockchainClasses.TilliJsonEvent
 import app.tilli.blockchain.service.blockchainsink.Resources
 import app.tilli.logging.Logging
 import app.tilli.persistence.kafka.KafkaConsumer
@@ -8,7 +9,7 @@ import cats.effect.{Async, Sync}
 import com.mongodb.bulk.BulkWriteResult
 import fs2.kafka.Deserializer
 
-trait SinkWriter[IN] extends Logging {
+trait SinkWriter extends Logging {
 
   def name: String = this.getClass.getSimpleName
 
@@ -16,11 +17,11 @@ trait SinkWriter[IN] extends Logging {
 
   def streamIntoDatabase[F[_] : Async](
     resources: Resources[F],
-    kafkaConsumer: KafkaConsumer[String, IN],
+    kafkaConsumer: KafkaConsumer[String, TilliJsonEvent],
     inputTopic: InputTopic,
     outputTopicFailure: OutputTopic,
   )(implicit
-    valueDeserializer: Deserializer[F, IN],
+    valueDeserializer: Deserializer[F, TilliJsonEvent],
   ): fs2.Stream[F, Unit] = {
     import cats.implicits._
     import fs2.kafka._
@@ -35,7 +36,8 @@ trait SinkWriter[IN] extends Logging {
         val processed = write(resources, chunk.toList.map(_.record.value))
           .flatMap {
             case Right(bulkWriteResult) =>
-              if (bulkWriteResult.wasAcknowledged()) Sync[F].pure()
+              if (bulkWriteResult.exists(_.wasAcknowledged())) Sync[F].pure()
+              else if (bulkWriteResult.isEmpty) Sync[F].pure()
               else Sync[F].raiseError(new IllegalStateException("Mongodb did not acknowledge write of chunk")).asInstanceOf[F[Unit]]
             case Left(throwable) =>
               log.error(s"$name: Write failed: ${throwable.getMessage}")
@@ -48,11 +50,16 @@ trait SinkWriter[IN] extends Logging {
             ).getOrElse("No offset")
           }")) *> processed *> batch.commit
       }
+      .handleErrorWith(err =>
+        fs2.Stream.eval(
+          Sync[F].delay(log.error("An error occurred while processing record", err))
+        )
+      )
   }
 
   def write[F[_] : Sync : Async](
     resources: Resources[F],
-    data: List[IN],
-  ): F[Either[Throwable, BulkWriteResult]]
+    data: List[TilliJsonEvent],
+  ): F[Either[Throwable, Option[BulkWriteResult]]]
 
 }
