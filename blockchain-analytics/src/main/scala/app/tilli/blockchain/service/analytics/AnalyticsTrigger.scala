@@ -2,7 +2,7 @@ package app.tilli.blockchain.service.analytics
 
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.codec.BlockchainConfig.DataTypeAnalyticsRequest
+import app.tilli.blockchain.codec.BlockchainConfig.{DataTypeAnalyticsRequest, NullAddress}
 import app.tilli.blockchain.service.StreamTrait
 import app.tilli.collection.AssetContractCache
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
@@ -50,6 +50,7 @@ object AnalyticsTrigger extends StreamTrait {
                       Sync[F].pure(toProducerRecords(committable.offset, List.empty, outputTopic))
                   case Right(addresses) =>
                     val lookup = addresses
+                      .filter(_ != NullAddress)
                       .map(address => isAssetContract(address, r.assetContractCache))
                       .sequence
                       .map(_.sequence)
