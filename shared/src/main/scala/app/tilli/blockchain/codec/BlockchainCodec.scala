@@ -44,6 +44,8 @@ object BlockchainCodec {
 
   implicit lazy val codecAnalyticsResult: Codec[AnalyticsResult] = deriveCodec
   implicit lazy val codecTilliAnalyticsResultEvent: Codec[TilliAnalyticsResultEvent] = deriveCodec
+  implicit lazy val codecTilliAnalyticsResultStatsV1: Codec[AnalyticsResultStatsV1] = deriveCodec
+  implicit lazy val codecTilliAnalyticsResultStatsV1Event: Codec[TilliAnalyticsResultStatsV1Event] = deriveCodec
 
   // FS kafka
   implicit val deserializerJson: Deserializer[IO, Json] = jsonDeserializer
@@ -53,6 +55,7 @@ object BlockchainCodec {
   implicit val deserializerTilliAnalyticsAddressRequest: Deserializer[IO, TilliAnalyticsAddressRequestEvent] = classDeserializer
   implicit val deserializerAnalyticsResult: Deserializer[IO, AnalyticsResult] = classDeserializer
   implicit val deserializerTilliAnalyticsResultEvent: Deserializer[IO, TilliAnalyticsResultEvent] = classDeserializer
+  implicit val deserializerTilliAnalyticsResultStatsV1Event: Serializer[IO, TilliAnalyticsResultStatsV1Event] = Fs2KafkaCodec.serializer
 
   implicit val serializerJson: Serializer[IO, Json] = Fs2KafkaCodec.serializer
   implicit val serializerTilliJsonEvent: Serializer[IO, TilliJsonEvent] = Fs2KafkaCodec.serializer
@@ -64,6 +67,7 @@ object BlockchainCodec {
   implicit val serializerTilliAnalyticsAddressRequest: Serializer[IO, TilliAnalyticsAddressRequestEvent] = Fs2KafkaCodec.serializer
   implicit val serializerAnalyticsResult: Serializer[IO, AnalyticsResult] = Fs2KafkaCodec.serializer
   implicit val serializerTilliAnalyticsResultEvent: Serializer[IO, TilliAnalyticsResultEvent] = Fs2KafkaCodec.serializer
+  implicit val serializerTilliAnalyticsResultStatsV1Event: Serializer[IO, TilliAnalyticsResultStatsV1Event] = Fs2KafkaCodec.serializer
 
   object InstantFromLongDecoder {
 

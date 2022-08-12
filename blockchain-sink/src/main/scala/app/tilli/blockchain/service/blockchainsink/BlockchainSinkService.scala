@@ -1,7 +1,7 @@
 package app.tilli.blockchain.service.blockchainsink
 
 import app.tilli.BlazeServer
-import app.tilli.blockchain.codec.BlockchainClasses.{DataProviderCursorRecord, TilliAnalyticsResultEvent, TilliAssetContractEvent, TransactionRecord}
+import app.tilli.blockchain.codec.BlockchainClasses.{DataProviderCursorRecord, TilliAnalyticsResultStatsV1Event, TilliAssetContractEvent, TransactionRecord}
 import app.tilli.blockchain.codec.BlockchainCodec._
 import app.tilli.blockchain.service.blockchainsink.config.AppConfig.readerAppConfig
 import app.tilli.integration.kafka.KafkaSslConfig.sslConfig
@@ -41,7 +41,7 @@ object BlockchainSinkService extends IOApp {
       )
       analyticsTransactionCollection <- Resource.eval(mongoDatabase
         .withWriteConcern(writeConcern)
-        .getCollectionWithCodec[TilliAnalyticsResultEvent](appConfig.mongoDbCollectionAnalyticsTransaction)
+        .getCollectionWithCodec[TilliAnalyticsResultStatsV1Event](appConfig.mongoDbCollectionAnalyticsTransaction)
       )
       convertedSslConfig <- Resource.eval(IO(SslConfig.processSslConfig(sslConfig)))
     } yield Resources[IO](

@@ -2,7 +2,7 @@ package app.tilli.blockchain.service.analytics
 
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.codec.BlockchainConfig.{ContractTypes, DataTypeAnalyticsResultEvent, NullAddress}
+import app.tilli.blockchain.codec.BlockchainConfig.{ContractTypes, DataAnalyticsResultStatsV1Event, NullAddress}
 import app.tilli.blockchain.dataprovider.TilliDataProvider
 import app.tilli.blockchain.service.StreamTrait
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
@@ -71,7 +71,7 @@ object NftHolding extends StreamTrait {
   def load[F[_] : Async : Sync](
     r: Resources[F],
     address: String,
-  ): F[Either[Throwable, List[AnalyticsResult]]] =
+  ): F[Either[Throwable, List[AnalyticsResultStatsV1]]] =
     loadByAddress(address, r.transactionCollection)
       .flatMap {
         case Left(err) => Sync[F].pure(Left(err))
@@ -123,7 +123,7 @@ object NftHolding extends StreamTrait {
   def tally(
     address: String,
     docs: Iterable[Doc],
-  ): Either[IllegalStateException, List[AnalyticsResult]] = {
+  ): Either[IllegalStateException, List[AnalyticsResultStatsV1]] = {
     val tokens = docs
       .groupBy(r => s"${r.data.assetContractAddress}-${r.data.tokenId}")
       .values
@@ -175,8 +175,32 @@ object NftHolding extends StreamTrait {
               }
             case Left(err) => Left(err)
           }
-        transactions.sequence
+        
+        val res: Either[IllegalStateException, List[AnalyticsResult]] = transactions.sequence
+
+        res
+          .map(_
+            .groupBy(_.address)
+            .values
+            .map { g =>
+              val holdTimes = g.flatMap(_.count)
+              val holdMin = if (holdTimes.nonEmpty) Some(holdTimes.min) else None
+              val holdMax = if (holdTimes.nonEmpty) Some(holdTimes.max) else None
+              val holdAvg = if (holdTimes.nonEmpty) Option(holdTimes.sum.toDouble / holdTimes.size) else None
+              val mints = g.count(_.originatedFromNullAddress)
+              val transactionCount = g.size
+              AnalyticsResultStatsV1(
+                address = address,
+                holdTimeAvg = holdAvg,
+                holdTimeMax = holdMax,
+                holdTimeMin = holdMin,
+                mints = Some(mints),
+                transactions = Some(transactionCount),
+              )
+            }
+          )
       }
+
     tokens
       .sequence
       .map(_.flatten)
@@ -185,17 +209,18 @@ object NftHolding extends StreamTrait {
   def toProducerRecords[F[_]](
     record: ConsumerRecord[String, TilliAnalyticsAddressRequestEvent],
     offset: CommittableOffset[F],
-    result: List[AnalyticsResult],
+    result: List[AnalyticsResultStatsV1],
     outputTopic: OutputTopic,
   )(implicit
-    encoder: Encoder[AnalyticsResult],
+    encoder: Encoder[AnalyticsResultStatsV1],
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    val producerRecords = result.map { ar =>
-      val event = TilliJsonEvent(
-        header = BlockchainClasses.Header(DataTypeAnalyticsResultEvent, Some(record.value.header.trackingId)),
-        data = ar.asJson,
-      )
-      ProducerRecord(outputTopic.name, ar.address, event)
+    val producerRecords = result.map {
+      ar =>
+        val event = TilliJsonEvent(
+          header = BlockchainClasses.Header(DataAnalyticsResultStatsV1Event, Some(record.value.header.trackingId)),
+          data = ar.asJson,
+        )
+        ProducerRecord(outputTopic.name, ar.address, event)
     }
     ProducerRecords(
       producerRecords,

@@ -16,8 +16,10 @@ object BlockchainConfig {
   val DataTypeDataProviderCursor = "DataProviderCursor"
   val DataTypeAnalyticsRequest = "AnalyticsRequest"
   val DataTypeAnalyticsResultEvent = "AnalyticsResult"
+  val DataAnalyticsResultStatsV1Event = "AnalyticsResultStatsV1"
 
   val Version_20220617 = "2022-06-17"
+  val Version_20220812 = "2022-08-12"
   val DataTypeToVersion = Map(
     DataTypeAssetContractRequest -> Version_20220617,
     DataTypeAssetContract -> Version_20220617,
@@ -29,6 +31,7 @@ object BlockchainConfig {
     DataTypeDataProviderCursor -> Version_20220617,
     DataTypeAnalyticsRequest ->  Version_20220617,
     DataTypeAnalyticsResultEvent -> Version_20220617,
+    DataAnalyticsResultStatsV1Event-> Version_20220812,
   )
 
   val dataProviderCovalentHq = new DataProvider(

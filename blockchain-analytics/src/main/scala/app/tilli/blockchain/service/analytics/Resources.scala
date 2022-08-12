@@ -2,8 +2,7 @@ package app.tilli.blockchain.service.analytics
 
 import app.tilli.blockchain.codec.BlockchainClasses._
 import app.tilli.blockchain.service.analytics.config.AppConfig
-import app.tilli.collection.{AddressRequestCache, AssetContractCache}
-import cats.effect.IO
+import app.tilli.collection.AssetContractCache
 import mongo4cats.collection.MongoCollection
 
 case class Resources[F[_]](
@@ -11,5 +10,5 @@ case class Resources[F[_]](
   httpServerPort: Int,
   sslConfig: Option[Map[String, String]],
   transactionCollection: MongoCollection[F, Doc],
-  assetContractCache: AssetContractCache[IO],
+  assetContractCache: AssetContractCache[F],
 )
