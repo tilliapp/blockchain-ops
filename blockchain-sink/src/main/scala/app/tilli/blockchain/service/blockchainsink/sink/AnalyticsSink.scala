@@ -1,6 +1,6 @@
 package app.tilli.blockchain.service.blockchainsink.sink
 
-import app.tilli.blockchain.codec.BlockchainClasses.{TilliAnalyticsResultEvent, TilliJsonEvent}
+import app.tilli.blockchain.codec.BlockchainClasses.{TilliAnalyticsResultStatsV1Event, TilliJsonEvent}
 import app.tilli.blockchain.service.blockchainsink.Resources
 import cats.effect.{Async, Sync}
 import com.mongodb.bulk.BulkWriteResult
@@ -19,7 +19,7 @@ object AnalyticsSink extends SinkWriter {
     import cats.implicits._
     import mongo4cats.collection.operations._
     val decoded = data
-      .map(j => (j.header.eventId, j.asJson.as[TilliAnalyticsResultEvent]))
+      .map(j => (j.header.eventId, j.asJson.as[TilliAnalyticsResultStatsV1Event]))
       .partition(r => r._2.isLeft)
 
     val logErrors = Sync[F].delay(decoded._1.foreach(t => log.error(s"Failed to decode eventId=${t._1}")))
@@ -28,9 +28,7 @@ object AnalyticsSink extends SinkWriter {
       .flatMap(_._2.toOption) // We know that the last part of the tuple is a successful decode so this is safe
       .map(result =>
         WriteCommand.ReplaceOne(
-          filter = Filter.eq("data.address", result.data.address)
-            .and(Filter.eq("data.tokenId", result.data.tokenId))
-            .and(Filter.eq("data.assetContractAddress", result.data.assetContractAddress)),
+          filter = Filter.eq("data.address", result.data.address),
           replacement = result,
           options = ReplaceOptions().upsert(true),
         )

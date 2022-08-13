@@ -2,7 +2,7 @@ package app.tilli.blockchain.service.analytics
 
 import app.tilli.blockchain.codec.BlockchainClasses
 import app.tilli.blockchain.codec.BlockchainClasses._
-import app.tilli.blockchain.codec.BlockchainConfig.{ContractTypes, DataTypeAnalyticsResultEvent, NullAddress}
+import app.tilli.blockchain.codec.BlockchainConfig.{ContractTypes, DataAnalyticsResultStatsV1Event, NullAddress}
 import app.tilli.blockchain.dataprovider.TilliDataProvider
 import app.tilli.blockchain.service.StreamTrait
 import app.tilli.persistence.kafka.{KafkaConsumer, KafkaProducer}
@@ -17,7 +17,7 @@ import mongo4cats.bson.Document
 import mongo4cats.collection.MongoCollection
 import mongo4cats.collection.operations.{Aggregate, Filter, Projection}
 
-import java.time.Duration
+import java.time.{Duration, Instant}
 import scala.concurrent.duration.DurationLong
 
 object NftHolding extends StreamTrait {
@@ -71,7 +71,7 @@ object NftHolding extends StreamTrait {
   def load[F[_] : Async : Sync](
     r: Resources[F],
     address: String,
-  ): F[Either[Throwable, List[AnalyticsResult]]] =
+  ): F[Either[Throwable, List[AnalyticsResultStatsV1]]] =
     loadByAddress(address, r.transactionCollection)
       .flatMap {
         case Left(err) => Sync[F].pure(Left(err))
@@ -123,16 +123,17 @@ object NftHolding extends StreamTrait {
   def tally(
     address: String,
     docs: Iterable[Doc],
-  ): Either[IllegalStateException, List[AnalyticsResult]] = {
-    val tokens = docs
+  ): Either[IllegalStateException, List[AnalyticsResultStatsV1]] = {
+    val tokens: Seq[Either[IllegalStateException, AnalyticsResult]] = docs
       .groupBy(r => s"${r.data.assetContractAddress}-${r.data.tokenId}")
       .values
       .toList
       .filter(_.exists(r => r.data.toAddress.map(_.toLowerCase) != r.data.fromAddress.map(_.toLowerCase)))
       .map(_.toList.sortBy(_.data.transactionTime))
       .sortBy(e => e.headOption.map(_.data.transactionTime))
-      .map { docs =>
+      .flatMap { docs =>
         val firstRecord = docs.head
+        val tokenId = firstRecord.data.tokenId
         val transactions = docs
           .map { doc =>
             val sign = if (doc.data.toAddress.contains(address)) +1 else -1
@@ -145,7 +146,10 @@ object NftHolding extends StreamTrait {
           .map { g =>
             val transactions = g.flatMap(_._3)
             g.size match {
-              case 1 => Right((g.head._1, None, transactions))
+              case 1 =>
+                val sign = g.head._1
+                if (sign < 0) Right((g.head._1, None, transactions))
+                else Right((g.head._1, g.head._2.map(start => Duration.between(start, Instant.now).toDays), transactions))
               case 2 =>
                 val duration = for {
                   start <- g.head._2
@@ -175,27 +179,55 @@ object NftHolding extends StreamTrait {
               }
             case Left(err) => Left(err)
           }
-        transactions.sequence
+        transactions
       }
-    tokens
-      .sequence
-      .map(_.flatten)
+
+    val userAnalytics =
+      tokens
+        .sequence
+        .map { g =>
+          val currentHoldings = g.filter(_.count.exists(_ > 0))
+          val tokenCount = currentHoldings.flatMap(_.count).sum
+          val assetContractAddresses = currentHoldings.map(_.assetContractAddress).distinct
+          val holdTimes = g.flatMap(_.duration)
+          val holdMin = if (holdTimes.nonEmpty) Some(holdTimes.min) else None
+          val holdMax = if (holdTimes.nonEmpty) Some(holdTimes.max) else None
+          val holdAvg = if (holdTimes.nonEmpty) Option(holdTimes.sum.toDouble / holdTimes.size) else None
+          val mints = g.count(_.originatedFromNullAddress)
+          val transactionCount = g.size
+          val assetContractCount = assetContractAddresses.size
+          AnalyticsResultStatsV1(
+            address = address,
+            holdTimeAvg = holdAvg,
+            holdTimeMax = holdMax.map(_.toInt),
+            holdTimeMin = holdMin.map(_.toInt),
+            mints = Some(mints),
+            transactions = Some(transactionCount),
+            tokens = Some(tokenCount),
+            assetContracts = assetContractAddresses,
+            assetContractCount = Some(assetContractCount),
+          )
+        }
+        .map(List(_))
+
+    userAnalytics
   }
 
   def toProducerRecords[F[_]](
     record: ConsumerRecord[String, TilliAnalyticsAddressRequestEvent],
     offset: CommittableOffset[F],
-    result: List[AnalyticsResult],
+    result: List[AnalyticsResultStatsV1],
     outputTopic: OutputTopic,
   )(implicit
-    encoder: Encoder[AnalyticsResult],
+    encoder: Encoder[AnalyticsResultStatsV1],
   ): ProducerRecords[CommittableOffset[F], String, TilliJsonEvent] = {
-    val producerRecords = result.map { ar =>
-      val event = TilliJsonEvent(
-        header = BlockchainClasses.Header(DataTypeAnalyticsResultEvent, Some(record.value.header.trackingId)),
-        data = ar.asJson,
-      )
-      ProducerRecord(outputTopic.name, ar.address, event)
+    val producerRecords = result.map {
+      ar =>
+        val event = TilliJsonEvent(
+          header = BlockchainClasses.Header(DataAnalyticsResultStatsV1Event, Some(record.value.header.trackingId)),
+          data = ar.asJson,
+        )
+        ProducerRecord(outputTopic.name, ar.address, event)
     }
     ProducerRecords(
       producerRecords,

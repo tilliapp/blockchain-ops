@@ -395,7 +395,7 @@ object BlockchainClasses {
   case class TilliAnalyticsAddressRequestEvent(
     header: Header,
     data: AnalyticsRequest,
-  )extends TilliEvent[AnalyticsRequest]
+  ) extends TilliEvent[AnalyticsRequest]
 
   case class AnalyticsResult(
     address: String,
@@ -409,9 +409,26 @@ object BlockchainClasses {
     transactions: Option[List[String]],
   )
 
+  case class AnalyticsResultStatsV1(
+    address: String,
+    holdTimeAvg: Option[Double],
+    holdTimeMax: Option[Int],
+    holdTimeMin: Option[Int],
+    mints: Option[Int],
+    transactions:Option[Int],
+    tokens: Option[Int],
+    assetContracts: Iterable[String],
+    assetContractCount: Option[Int],
+  )
+
   case class TilliAnalyticsResultEvent(
     header: Header,
     data: AnalyticsResult,
-  )extends TilliEvent[AnalyticsResult]
+  ) extends TilliEvent[AnalyticsResult]
 
+
+  case class TilliAnalyticsResultStatsV1Event(
+    header: Header,
+    data: AnalyticsResultStatsV1,
+  ) extends TilliEvent[AnalyticsResultStatsV1]
 }
