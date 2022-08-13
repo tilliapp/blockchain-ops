@@ -17,7 +17,7 @@ import mongo4cats.bson.Document
 import mongo4cats.collection.MongoCollection
 import mongo4cats.collection.operations.{Aggregate, Filter, Projection}
 
-import java.time.Duration
+import java.time.{Duration, Instant}
 import scala.concurrent.duration.DurationLong
 
 object NftHolding extends StreamTrait {
@@ -124,15 +124,16 @@ object NftHolding extends StreamTrait {
     address: String,
     docs: Iterable[Doc],
   ): Either[IllegalStateException, List[AnalyticsResultStatsV1]] = {
-    val tokens = docs
+    val tokens: Seq[Either[IllegalStateException, AnalyticsResult]] = docs
       .groupBy(r => s"${r.data.assetContractAddress}-${r.data.tokenId}")
       .values
       .toList
       .filter(_.exists(r => r.data.toAddress.map(_.toLowerCase) != r.data.fromAddress.map(_.toLowerCase)))
       .map(_.toList.sortBy(_.data.transactionTime))
       .sortBy(e => e.headOption.map(_.data.transactionTime))
-      .map { docs =>
+      .flatMap { docs =>
         val firstRecord = docs.head
+        val tokenId = firstRecord.data.tokenId
         val transactions = docs
           .map { doc =>
             val sign = if (doc.data.toAddress.contains(address)) +1 else -1
@@ -145,7 +146,10 @@ object NftHolding extends StreamTrait {
           .map { g =>
             val transactions = g.flatMap(_._3)
             g.size match {
-              case 1 => Right((g.head._1, None, transactions))
+              case 1 =>
+                val sign = g.head._1
+                if (sign < 0) Right((g.head._1, None, transactions))
+                else Right((g.head._1, g.head._2.map(start => Duration.between(start, Instant.now).toDays), transactions))
               case 2 =>
                 val duration = for {
                   start <- g.head._2
@@ -175,35 +179,36 @@ object NftHolding extends StreamTrait {
               }
             case Left(err) => Left(err)
           }
-        
-        val res: Either[IllegalStateException, List[AnalyticsResult]] = transactions.sequence
-
-        res
-          .map(_
-            .groupBy(_.address)
-            .values
-            .map { g =>
-              val holdTimes = g.flatMap(_.count)
-              val holdMin = if (holdTimes.nonEmpty) Some(holdTimes.min) else None
-              val holdMax = if (holdTimes.nonEmpty) Some(holdTimes.max) else None
-              val holdAvg = if (holdTimes.nonEmpty) Option(holdTimes.sum.toDouble / holdTimes.size) else None
-              val mints = g.count(_.originatedFromNullAddress)
-              val transactionCount = g.size
-              AnalyticsResultStatsV1(
-                address = address,
-                holdTimeAvg = holdAvg,
-                holdTimeMax = holdMax,
-                holdTimeMin = holdMin,
-                mints = Some(mints),
-                transactions = Some(transactionCount),
-              )
-            }
-          )
+        transactions
       }
 
-    tokens
-      .sequence
-      .map(_.flatten)
+    val userAnalytics =
+      tokens
+        .sequence
+        .map { g =>
+          val currentHoldings = g.filter(_.count.exists(_>0))
+          val tokenCount = currentHoldings.flatMap(_.count).sum
+          val assetContractAddresses = currentHoldings.map(_.assetContractAddress).distinct
+          val holdTimes = g.flatMap(_.duration)
+          val holdMin = if (holdTimes.nonEmpty) Some(holdTimes.min) else None
+          val holdMax = if (holdTimes.nonEmpty) Some(holdTimes.max) else None
+          val holdAvg = if (holdTimes.nonEmpty) Option(holdTimes.sum.toDouble / holdTimes.size) else None
+          val mints = g.count(_.originatedFromNullAddress)
+          val transactionCount = g.size
+          AnalyticsResultStatsV1(
+            address = address,
+            holdTimeAvg = holdAvg,
+            holdTimeMax = holdMax.map(_.toInt),
+            holdTimeMin = holdMin.map(_.toInt),
+            mints = Some(mints),
+            transactions = Some(transactionCount),
+            tokens = Some(tokenCount),
+            assetContracts = assetContractAddresses,
+          )
+        }
+        .map(List(_))
+
+    userAnalytics
   }
 
   def toProducerRecords[F[_]](
