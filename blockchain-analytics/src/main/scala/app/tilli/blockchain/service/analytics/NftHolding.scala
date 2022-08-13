@@ -186,7 +186,7 @@ object NftHolding extends StreamTrait {
       tokens
         .sequence
         .map { g =>
-          val currentHoldings = g.filter(_.count.exists(_>0))
+          val currentHoldings = g.filter(_.count.exists(_ > 0))
           val tokenCount = currentHoldings.flatMap(_.count).sum
           val assetContractAddresses = currentHoldings.map(_.assetContractAddress).distinct
           val holdTimes = g.flatMap(_.duration)
@@ -195,6 +195,7 @@ object NftHolding extends StreamTrait {
           val holdAvg = if (holdTimes.nonEmpty) Option(holdTimes.sum.toDouble / holdTimes.size) else None
           val mints = g.count(_.originatedFromNullAddress)
           val transactionCount = g.size
+          val assetContractCount = assetContractAddresses.size
           AnalyticsResultStatsV1(
             address = address,
             holdTimeAvg = holdAvg,
@@ -204,6 +205,7 @@ object NftHolding extends StreamTrait {
             transactions = Some(transactionCount),
             tokens = Some(tokenCount),
             assetContracts = assetContractAddresses,
+            assetContractCount = Some(assetContractCount),
           )
         }
         .map(List(_))

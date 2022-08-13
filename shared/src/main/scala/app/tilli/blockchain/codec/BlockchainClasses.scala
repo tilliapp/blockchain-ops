@@ -418,6 +418,7 @@ object BlockchainClasses {
     transactions:Option[Int],
     tokens: Option[Int],
     assetContracts: Iterable[String],
+    assetContractCount: Option[Int],
   )
 
   case class TilliAnalyticsResultEvent(
